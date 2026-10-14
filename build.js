@@ -8,6 +8,9 @@ const body = src('app.template.html')
   .replace('/*@parser*/', () => src('parser.js'))
   .replace('/*@categories*/', () => src('categories.js'));
 
+// Versie = moment van bouwen. De app vergelijkt die met version.json om te zien of er een update is.
+const versie = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
 const head = `<!doctype html>
 <html lang="nl">
 <head>
@@ -18,7 +21,9 @@ const head = `<!doctype html>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-180.png">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
+<script>window.KASBOEK_VERSIE = ${JSON.stringify(versie)};</script>
 `;
 
 fs.writeFileSync(path.join(__dirname, 'index.html'), head + body + '\n</html>\n');
-console.log('index.html gebouwd (' + Math.round((head + body).length / 1024) + ' KB)');
+fs.writeFileSync(path.join(__dirname, 'version.json'), JSON.stringify({ versie }) + '\n');
+console.log('index.html gebouwd (' + Math.round((head + body).length / 1024) + ' KB), versie ' + versie);

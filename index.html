@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-180.png">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
+<script>window.KASBOEK_VERSIE = "2026-10-14 20:16:39";</script>
 <title>Mijn Kasboek</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Kasboek">
@@ -173,6 +174,8 @@ label.fld { display: grid; gap: 6px; }
 .steps b { color: var(--ink); font-weight: 600; }
 .notice { padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); font-size: .88rem; }
 .notice.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.notice.update { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 500; }
+.notice.update[hidden] { display: none; }
 .badge { font-size: .72rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
 .badge.ok { background: var(--accent-soft); color: var(--accent); }
 .badge.warn { background: var(--warn-bg); color: var(--warn-ink); }
@@ -214,6 +217,7 @@ nav.tabs .count { position: absolute; top: -5px; right: -12px; min-width: 18px; 
 
 <div class="app" id="app">
   <div class="notice warn" id="err" role="alert" hidden></div>
+  <div class="notice update" id="update" role="status" hidden><span>Er is een nieuwe versie van Kasboek.</span><button class="btn small primary" id="update-btn" type="button">Bijwerken</button></div>
   <header class="top">
     <div class="brandwrap">
       <h1 class="brand">Kasboek<small id="acct">Rabobank betaalrekening</small></h1>
@@ -1423,7 +1427,8 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       <h2 id="sh-title" style="font-size:1.25rem">GitHub-koppeling</h2>
       <dl class="kv"><dt>Repository</dt><dd><a href="${esc(url)}" target="_blank" rel="noopener">${esc(gh.owner)}/${esc(gh.repo)}</a></dd>
         <dt>Status</dt><dd>${esc(document.getElementById('sync').textContent)}${sync.msg ? '<br><span class="hint">' + esc(sync.msg) + '</span>' : ''}</dd>
-        <dt>Afschriften</dt><dd>${data.statements.length} ingelezen</dd></dl>
+        <dt>Afschriften</dt><dd>${data.statements.length} ingelezen</dd>
+        <dt>App-versie</dt><dd class="num">${esc(window.KASBOEK_VERSIE || 'onbekend')}</dd></dl>
       <p class="hint">Op dit apparaat staan alleen de koppeling en een kopie, zodat de app snel opent. Ontkoppelen wist die van dit apparaat; je repository blijft gewoon bestaan.</p>
       <div class="actions"><button class="btn primary" id="g-refresh">Nu vernieuwen</button><button class="btn danger" id="g-off">Ontkoppelen</button><button class="btn" id="sh-close">Sluiten</button></div>`);
     bg.querySelector('#g-refresh').onclick = () => { bg.remove(); loadAll(); };
@@ -1556,6 +1561,23 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     connect(document.getElementById('s-owner').value.trim(), document.getElementById('s-repo').value.trim(), document.getElementById('s-token').value.trim());
   });
   document.getElementById('sync').addEventListener('click', () => { if (gh) openGithubSheet(); });
+
+  // ---------- updates ----------
+  // Na elke aanpassing staat er een nieuwe version.json online. Is die anders dan deze versie, dan tonen we een knop.
+  let newVersion = null;
+  async function checkUpdate() {
+    if (!window.KASBOEK_VERSIE) return;
+    try {
+      const j = await (await fetch('version.json?t=' + Date.now(), { cache: 'no-store' })).json();
+      if (j.versie && j.versie !== window.KASBOEK_VERSIE) { newVersion = j.versie; document.getElementById('update').hidden = false; }
+    } catch (e) { /* offline: later opnieuw proberen */ }
+  }
+  document.getElementById('update-btn').addEventListener('click', () => {
+    location.replace(location.pathname + '?v=' + encodeURIComponent(newVersion || Date.now()));
+  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+  setInterval(checkUpdate, 10 * 60 * 1000);
+  checkUpdate();
 
   render();
   loadAll();
