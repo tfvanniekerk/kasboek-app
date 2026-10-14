@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon-180.png?v=euro">
 <link rel="icon" href="icon-180.png?v=euro">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
-<script>window.KASBOEK_VERSIE = "2026-10-14 20:52:36";</script>
+<script>window.KASBOEK_VERSIE = "2026-10-14 20:56:33";</script>
 <title>Mijn Kasboek</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Kasboek">
@@ -76,7 +76,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .monthnav button { border: 0; background: none; width: 34px; height: 34px; border-radius: 50%; font-size: 1.1rem; line-height: 1; }
 .monthnav button:disabled { opacity: .3; cursor: default; }
 .monthnav button:not(:disabled):hover { background: var(--accent-soft); }
-.monthnav .label { min-width: 118px; text-align: center; font-weight: 600; font-size: .9rem; text-transform: capitalize; }
+.monthnav .label { white-space: nowrap; padding-inline: 4px; min-width: 118px; text-align: center; font-weight: 600; font-size: .9rem; }
 
 h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.05rem; margin: 0; letter-spacing: -.005em; text-wrap: balance; }
 .section { display: grid; gap: 10px; }
@@ -744,8 +744,42 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     return (r && r.cat && CAT[r.cat]) ? r.cat : autoCategory(t, extraRules);
   }
   const catObj = id => CAT[id] || CAT.overig;
-  const months = () => [...new Set(data.txs.map(t => t.date.slice(0, 7)))].sort();
-  const inMonth = ym => data.txs.filter(t => t.date.startsWith(ym));
+  // ---------- periodes van de 23e tot de 23e ----------
+  // Een periode begint op de dag dat DUO binnenkomt (tussen de 20e en 25e), anders op de 23e.
+  // De periode heet naar de maand waarin hij eindigt: 24 sep – 22 okt is "oktober".
+  const PERIOD_DAY = 23;
+  const addMonth = (ym, n) => { const d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  let startMemo = null, periodMemo = new Map();
+  function periodStart(ym) {
+    if (!startMemo) {
+      startMemo = {};
+      for (const t of data.txs) {
+        const day = +t.date.slice(8, 10);
+        if (t.amount > 0 && day >= 20 && day <= 25 && catOf(t) === 'duo') {
+          const m = t.date.slice(0, 7);
+          if (!startMemo[m] || t.date < startMemo[m]) startMemo[m] = t.date;
+        }
+      }
+    }
+    return startMemo[ym] || `${ym}-${PERIOD_DAY}`;
+  }
+  function periodOf(date) {
+    let p = periodMemo.get(date);
+    if (!p) { const m = date.slice(0, 7); p = date >= periodStart(m) ? addMonth(m, 1) : m; periodMemo.set(date, p); }
+    return p;
+  }
+  function periodRange(key) {
+    const from = periodStart(addMonth(key, -1));
+    const end = new Date(periodStart(key) + 'T12:00'); end.setDate(end.getDate() - 1);
+    return { from, to: toIso(end) };
+  }
+  const shortDate = d => new Date(d + 'T12:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }).replace('.', '');
+  function periodLabel(key) {
+    const { from, to } = periodRange(key);
+    return `${shortDate(from)} – ${shortDate(to)} ${to.slice(0, 4)}`;
+  }
+  const months = () => [...new Set(data.txs.map(t => periodOf(t.date)))].sort();
+  const inMonth = key => data.txs.filter(t => periodOf(t.date) === key);
 
   function totals(txs) {
     let spent = 0, income = 0; const byCat = {};
@@ -767,14 +801,14 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     try { renderInner(); } catch (e) { showError(e); }
   }
   function renderInner() {
-    memo = new Map();
+    memo = new Map(); startMemo = null; periodMemo = new Map();
     const ms = months();
     if (!ui.month || !ms.includes(ui.month)) ui.month = ms[ms.length - 1] || null;
     document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
     const nav = document.getElementById('monthnav');
     nav.hidden = !ms.length || ui.tab === 'regels' || ui.tab === 'indelen';
     if (ms.length) {
-      document.getElementById('monthlabel').textContent = monthName(ui.month);
+      document.getElementById('monthlabel').textContent = periodLabel(ui.month);
       const i = ms.indexOf(ui.month);
       document.getElementById('prev').disabled = i <= 0;
       document.getElementById('next').disabled = i >= ms.length - 1;
@@ -868,7 +902,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     let deltaHtml = '';
     if (prev && prev.spent > 0) {
       const d = cur.spent - prev.spent;
-      deltaHtml = `<div class="delta">${d > 0 ? '<b class="neg">' + money(d, true) + ' meer</b>' : '<b class="pos">' + money(-d, true) + ' minder</b>'} dan ${monthShort(ms[i - 1])}</div>`;
+      deltaHtml = `<div class="delta">${d > 0 ? '<b class="neg">' + money(d, true) + ' meer</b>' : '<b class="pos">' + money(-d, true) + ' minder</b>'} dan vorige periode</div>`;
     }
     const pin = inMonth(ui.month).filter(t => PIN_TYPES.includes(t.type) && t.amount < 0);
     const pinSum = -pin.reduce((s, t) => s + t.amount, 0);
@@ -886,12 +920,12 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       <section class="panel list">
         <button class="row-btn" data-act="pin">
           <span class="ic" style="background:var(--accent)">€</span>
-          <span class="who"><b>Pinbetalingen</b><small>${pin.length} keer gepind in ${monthShort(ui.month)}</small></span>
+          <span class="who"><b>Pinbetalingen</b><small>${pin.length} keer gepind deze periode</small></span>
           <span class="amt num">${money(pinSum)}</span>
         </button>
         <button class="row-btn" data-act="files">
           <span class="ic" style="background:var(--muted)">↥</span>
-          <span class="who"><b>Afschriften</b><small>${ms.length} maanden, ${monthShort(first)} ${first.slice(0, 4)} t/m ${monthShort(last)} ${last.slice(0, 4)}</small></span>
+          <span class="who"><b>Afschriften</b><small>${data.statements.length} afschriften${data.statements.length ? `, t/m ${monthName(data.statements[data.statements.length - 1].ym)}` : ''}</small></span>
           <span class="btn small primary" data-act="import">Toevoegen</span>
         </button>
       </section>
@@ -912,7 +946,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
         <span class="who"><b>${esc(inc.label)}</b><small>${esc(inc.when)}${latest && nx ? ` · volgende ${nx.approx ? 'rond ' : ''}${dayName(nx.date)}` : ''}</small></span>
         <span class="amtcol">${got.length
           ? `<span class="amt num in">${signed(sum)}</span><span class="paid">✓ ${got.map(t => dayName(t.date)).join(', ')}</span>`
-          : `<span class="unpaid">niet in ${monthShort(ui.month)}</span>`}</span>
+          : `<span class="unpaid">nog niet deze periode</span>`}</span>
       </div>`;
     }).join('');
     return `<section class="section"><h2>Inkomsten</h2><div class="panel list">${rows}</div></section>`;
@@ -944,13 +978,12 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   let balPts = [];
   const BAL = { W: 360, H: 150, padL: 34, padB: 20, padT: 10 };
   // saldo per dag over twee maanden (vorige + gekozen), met een lijn op elke 23e
-  const PAYDAY = 23;
   function balanceCard() {
     const all = balanceSeries();
     const ms = months();
     const prevYm = ms[ms.indexOf(ui.month) - 1];
-    const inSel = all.filter(p => p.date.startsWith(ui.month));
-    balPts = all.filter(p => p.date.startsWith(ui.month) || (prevYm && p.date.startsWith(prevYm)));
+    const inSel = all.filter(p => periodOf(p.date) === ui.month);
+    balPts = all.filter(p => periodOf(p.date) === ui.month || (prevYm && periodOf(p.date) === prevYm));
     if (!inSel.length) {
       return all.length ? '' : `<div class="notice">Voeg je afschriften opnieuw toe om het verloop van je saldo te zien. Dubbele transacties worden overgeslagen.</div>`;
     }
@@ -975,13 +1008,13 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     const band = selStart > 0 ? `<rect x="${x(selStart).toFixed(1)}" y="${padT}" width="${(W - x(selStart)).toFixed(1)}" height="${H - padT - padB}" style="fill:var(--accent-soft)"/>` : '';
     let paydays = '';
     const ticks = balPts.map((p, i) => {
-      const d = +p.date.slice(8, 10);
-      const ym = p.date.slice(0, 7);
-      if (d === PAYDAY) {
+      // begin van een periode: stippellijn en vet label
+      const startsPeriod = i > 0 && periodOf(balPts[i - 1].date) !== periodOf(p.date);
+      if (startsPeriod) {
         paydays += `<line class="payday" x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}" y1="${padT}" y2="${H - padB}"/>`;
-        return `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="middle" style="fill:var(--ink);font-weight:600">23 ${monthShort(ym)}</text>`;
+        return `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${shortDate(p.date)}</text>`;
       }
-      return d === 1 ? `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="start">1 ${monthShort(ym)}</text>` : '';
+      return i === 0 ? `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="start">${shortDate(p.date)}</text>` : '';
     }).join('');
     // inkomstenmomenten als stip op de lijn
     const incDays = new Map();
@@ -991,9 +1024,9 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     const ei = balPts.indexOf(endPt);
     return `<section class="panel balance">
       <div class="row">
-        <div style="display:grid;gap:2px"><span class="kicker">Saldo eind ${esc(monthName(endPt.date.slice(0, 7)))}</span><span class="big num ${endPt.bal < 0 ? 'neg' : ''}">${money(endPt.bal)}</span></div>
+        <div style="display:grid;gap:2px"><span class="kicker">Saldo op ${esc(shortDate(endPt.date))}</span><span class="big num ${endPt.bal < 0 ? 'neg' : ''}">${money(endPt.bal)}</span></div>
         <span class="delta" style="display:grid;gap:2px">
-          ${startBal !== null ? `<span>begin maand: <b>${money(startBal)}</b></span>` : ''}
+          ${startBal !== null ? `<span>begin periode: <b>${money(startBal)}</b></span>` : ''}
           <span>laagste: <b class="${low.bal < 5000 ? 'neg' : ''}">${money(low.bal)}</b> op ${dayName(low.date)}</span>
         </span>
       </div>
@@ -1008,7 +1041,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
         ${ticks}
         <g class="cursor" visibility="hidden"><line y1="${padT}" y2="${H - padB}" style="stroke:var(--ink);stroke-width:1;opacity:.4"/><circle r="3.5" style="fill:var(--ink)"/></g>
       </svg>
-      <div class="legend"><span><i class="dot" style="background:var(--pos)"></i>inkomsten binnen</span><span><i class="dash"></i>de 23e</span>${bot < 0 ? '<span><i class="dot" style="background:var(--neg)"></i>onder nul</span>' : ''}</div>
+      <div class="legend"><span><i class="dot" style="background:var(--pos)"></i>inkomsten binnen</span><span><i class="dash"></i>nieuwe periode</span>${bot < 0 ? '<span><i class="dot" style="background:var(--neg)"></i>onder nul</span>' : ''}</div>
       <div class="readout" id="bal-readout">Schuif over de grafiek om je saldo per dag te zien.</div>
     </section>`;
   }
@@ -1060,14 +1093,14 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     const ms = months().slice(-12);
     const groups = fixedGroups();
     for (const v of groups) {
-      const firstM = v.txs[v.txs.length - 1].date.slice(0, 7);
+      const firstM = periodOf(v.txs[v.txs.length - 1].date);
       const span = ms.filter(m => m >= firstM);
-      const inSpan = v.txs.filter(t => span.includes(t.date.slice(0, 7)));
-      const n = span.filter(m => v.txs.some(t => t.date.startsWith(m))).length;
+      const inSpan = v.txs.filter(t => span.includes(periodOf(t.date)));
+      const n = span.filter(m => v.txs.some(t => periodOf(t.date) === m)).length;
       v.monthly = span.length > 0 && n >= span.length - 1;
       v.perMonth = v.median * Math.min(1, inSpan.length / Math.max(1, span.length));
-      v.thisMonth = -v.txs.filter(t => t.date.startsWith(ui.month)).reduce((s, t) => s + t.amount, 0);
-      v.freq = v.monthly ? 'elke maand' + (span.length < ms.length ? ' sinds ' + monthShort(firstM) : '') : `${n}× in ${span.length} mnd`;
+      v.thisMonth = -v.txs.filter(t => periodOf(t.date) === ui.month).reduce((s, t) => s + t.amount, 0);
+      v.freq = v.monthly ? 'elke periode' + (span.length < ms.length ? ' sinds ' + monthShort(firstM) : '') : `${n}× in ${span.length} periodes`;
     }
     groups.sort((a, b) => b.perMonth - a.perMonth);
     const perMonth = groups.reduce((s, v) => s + v.perMonth, 0);
@@ -1077,19 +1110,19 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       return `<button class="row-btn" data-group="${esc(v.key)}">
         <span class="ic" style="background:${c.color}">${initial(c.id.startsWith('c_') || c.id === 'wonen' ? c.label : v.name)}</span>
         <span class="who"><b>${esc(c.id.startsWith('c_') || c.id === 'wonen' ? c.label : v.name)}</b><small>${esc(c.id.startsWith('c_') || c.id === 'wonen' ? v.name : c.label)} · ${v.freq}</small></span>
-        <span class="amtcol"><span class="amt num">${money(v.median, v.median >= 10000)}<span class="hint" style="font-weight:400">${v.monthly ? '/mnd' : '/keer'}</span></span>
-          ${v.thisMonth ? `<span class="paid num">✓ ${money(v.thisMonth)}</span>` : `<span class="unpaid">niet in ${monthShort(ui.month)}</span>`}</span>
+        <span class="amtcol"><span class="amt num">${money(v.median, v.median >= 10000)}<span class="hint" style="font-weight:400">${v.monthly ? '/periode' : '/keer'}</span></span>
+          ${v.thisMonth ? `<span class="paid num">✓ ${money(v.thisMonth)}</span>` : `<span class="unpaid">nog niet</span>`}</span>
       </button>`;
     }).join('');
 
     return `<div class="stack">
       ${searchBox}
       <section class="section">
-        <div class="section-head"><h2>Per soort in ${esc(monthShort(ui.month))} · <span class="num">${money(cur.spent)}</span></h2><button class="btn small" data-act="new-cat">+ Nieuwe soort kosten</button></div>
+        <div class="section-head"><h2>Per soort deze periode · <span class="num">${money(cur.spent)}</span></h2><button class="btn small" data-act="new-cat">+ Nieuwe soort kosten</button></div>
         <div class="panel" style="padding:6px 0">${catRows}</div>
       </section>
       <section class="section">
-        <div class="section-head"><h2>Vaste lasten</h2><span class="hint">ca. <b class="num" style="color:var(--ink)">${money(perMonth, true)}</b> per maand · ${money(paid, true)} betaald in ${monthShort(ui.month)}</span></div>
+        <div class="section-head"><h2>Vaste lasten</h2><span class="hint">ca. <b class="num" style="color:var(--ink)">${money(perMonth, true)}</b> per periode · ${money(paid, true)} betaald deze periode</span></div>
         <div class="panel list">${fixedRows || '<p class="hint" style="padding:14px 16px">Nog geen vaste lasten gevonden.</p>'}</div>
         <p class="hint">Tik op een vaste last om de betalingen te zien of hem uit deze lijst te halen.</p>
       </section>
@@ -1116,7 +1149,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       v.median = amts[Math.floor(amts.length / 2)];
       if (v.rule) { if (v.rule.fixed) out.push(v); continue; }
       if (ruled.has(v.key)) continue;
-      const monthsSet = new Set(v.txs.map(t => t.date.slice(0, 7)));
+      const monthsSet = new Set(v.txs.map(t => periodOf(t.date)));
       const regular = amts.filter(a => Math.abs(a - v.median) <= v.median * 0.1).length / amts.length >= 0.6;
       if (monthsSet.size >= 3 && v.cat !== 'vrienden' && (v.txs.some(t => RECURRING_TYPES.includes(t.type)) || (regular && monthsSet.size >= 4))) out.push(v);
     }
@@ -1374,13 +1407,13 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   function openPinSheet() {
     const pin = inMonth(ui.month).filter(t => PIN_TYPES.includes(t.type));
     const sum = -pin.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0);
-    listSheet('Pinbetalingen', `${monthName(ui.month)} · ${money(sum)}`, pin);
+    listSheet('Pinbetalingen', `${periodLabel(ui.month)} · ${money(sum)}`, pin);
   }
 
   function openCatSheet(id) {
     const c = catObj(id);
     const txs = inMonth(ui.month).filter(t => catOf(t) === id);
-    listSheet(c.label, `${monthName(ui.month)} · ${money(-txs.reduce((s, t) => s + t.amount, 0))}`, txs);
+    listSheet(c.label, `${periodLabel(ui.month)} · ${money(-txs.reduce((s, t) => s + t.amount, 0))}`, txs);
   }
 
   function openGroupSheet(key) {
