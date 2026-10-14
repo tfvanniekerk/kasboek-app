@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon-180.png?v=euro">
 <link rel="icon" href="icon-180.png?v=euro">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
-<script>window.KASBOEK_VERSIE = "2026-10-14 21:19:19";</script>
+<script>window.KASBOEK_VERSIE = "2026-10-14 21:42:17";</script>
 <title>Mijn Kasboek</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Kasboek">
@@ -326,6 +326,26 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     return pages;
   }
 
+  // soort rekening, de regel onder de titel, bijv. "Rabo Standaard" of "Rabo BeleggersRekening"
+  function productName(items) {
+    const title = items.find(i => /Rekeningafschrift$/.test(i.str) && i.y > 740);
+    if (!title) return '';
+    const below = items.find(i => Math.abs(i.x - title.x) < 2 && i.y < title.y - 8 && i.y > title.y - 20);
+    return below ? below.str : '';
+  }
+
+  // Eén PDF kan afschriften van meerdere rekeningen bevatten ("RA_A_accounts_…").
+  // Een nieuw afschrift begint op een pagina met de titel "Rekeningafschrift" (niet "vervolg …").
+  function splitStatements(pages) {
+    const groups = [];
+    for (const items of pages) {
+      const isStart = items.some(i => i.str === 'Rekeningafschrift' && i.y > 740);
+      if (isStart || !groups.length) groups.push([]);
+      groups[groups.length - 1].push(items);
+    }
+    return groups;
+  }
+
   function parsePages(pages) {
     const first = pages[0] || [];
     const header = {
@@ -336,6 +356,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       totalCredit: parseAmount(valueBelow(first, 'Totaal bijgeschreven') || '0'),
       startBalance: parseBalance(valueBelow(first, 'Beginsaldo')),
       endBalance: parseBalance(valueBelow(first, 'Eindsaldo')),
+      product: productName(first),
     };
     if (!/^\d{2}-\d{2}-\d{4}$/.test(header.from || '') || !header.iban.includes('RABO')) {
       throw new Error('Dit lijkt geen Rabobank rekeningafschrift te zijn.');
@@ -416,7 +437,12 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     return parsePages(await extractPages(pdfjsLib, data));
   }
 
-  const api = { parsePdf, parsePages, extractPages };
+  // alle afschriften in de PDF, één per rekening
+  async function parsePdfAll(pdfjsLib, data) {
+    return splitStatements(await extractPages(pdfjsLib, data)).map(parsePages);
+  }
+
+  const api = { parsePdf, parsePdfAll, parsePages, extractPages };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RaboParser = api;
 })(this);
@@ -552,7 +578,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   const CFG_KEY = 'kasboek.github', CACHE_KEY = 'kasboek.cache.v2', COPY_KEY = 'kasboek.instellingen';
   const DATA_FILE = 'kasboek.json', PDF_DIR = 'afschriften';
   // samenvoegen: { oudeSoort: nieuweSoort }, namen: { soort: 'andere naam' }
-  const SETTINGS_KEYS = ['versie', 'ruleList', 'cats', 'overrides', 'nextRule', 'inkomsten', 'trefwoorden', 'samenvoegen', 'namen'];
+  const SETTINGS_KEYS = ['versie', 'ruleList', 'cats', 'overrides', 'nextRule', 'inkomsten', 'trefwoorden', 'samenvoegen', 'namen', 'hoofdrekening'];
   const defaults = () => ({ versie: 1, ruleList: [], cats: [], overrides: {}, nextRule: 1, inkomsten: [], trefwoorden: {}, samenvoegen: {}, namen: {} });
   const readLS = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
   const writeLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
@@ -574,19 +600,31 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   const settingsOnly = () => Object.fromEntries(SETTINGS_KEYS.map(k => [k, data[k]]));
 
   // transacties opbouwen uit alle ingelezen afschriften
+  // Een PDF kan meerdere rekeningen bevatten. De hoofdrekening (meeste transacties, of "hoofdrekening" in kasboek.json)
+  // vult de hele app; andere rekeningen (zoals een spaar- of beleggersrekening) komen in data.accounts.
+  const partsOf = f => f.parts || (f.statement ? [{ statement: f.statement, txs: f.txs }] : []);
   function rebuild() {
-    const entries = Object.values(cache.files).filter(f => f.statement).sort((a, b) => isoOf(a.statement.from).localeCompare(isoOf(b.statement.from)));
-    const seen = new Set();
-    data.statements = []; data.txs = [];
-    for (const f of entries) {
-      data.statements.push(f.statement);
-      for (const t of f.txs) if (!seen.has(t.id)) { seen.add(t.id); data.txs.push(t); }
+    const byIban = {};
+    for (const f of Object.values(cache.files)) for (const p of partsOf(f)) {
+      const iban = p.statement.iban || 'onbekend';
+      const acc = byIban[iban] = byIban[iban] || { iban, product: '', statements: [], txs: [], seenSt: new Set(), seenTx: new Set() };
+      if (p.statement.product) acc.product = p.statement.product;
+      if (acc.seenSt.has(p.statement.from)) continue;
+      acc.seenSt.add(p.statement.from);
+      acc.statements.push(p.statement);
+      for (const t of p.txs) if (!acc.seenTx.has(t.id)) { acc.seenTx.add(t.id); acc.txs.push(t); }
     }
+    const list = Object.values(byIban);
+    for (const a of list) { a.statements.sort((x, y) => isoOf(x.from).localeCompare(isoOf(y.from))); delete a.seenSt; delete a.seenTx; }
+    const main = list.find(a => a.iban === data.hoofdrekening) || list.slice().sort((a, b) => b.txs.length - a.txs.length)[0];
+    data.statements = main ? main.statements : [];
+    data.txs = main ? main.txs : [];
+    data.accounts = list.filter(a => a !== main);
   }
   function pack(r) {
     const ym = isoOf(r.from).slice(0, 7);
     return {
-      statement: { ym, from: r.from, to: r.to, iban: r.iban, start: r.startBalance, end: r.endBalance, n: r.transactions.length, debit: r.totalDebit, credit: r.totalCredit, ok: r.check.ok },
+      statement: { ym, from: r.from, to: r.to, iban: r.iban, product: r.product, start: r.startBalance, end: r.endBalance, n: r.transactions.length, debit: r.totalDebit, credit: r.totalCredit, ok: r.check.ok },
       txs: r.transactions.map(t => ({ id: t.id, st: r.from, date: t.date, type: t.type, amount: t.amount, name: t.name, details: (t.details || '').slice(0, 220), place: t.place, time: t.time, counterIban: t.counterIban })),
     };
   }
@@ -649,7 +687,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
         for (const f of todo) {
           ui.loading = `Afschrift ${++i} van ${todo.length} lezen…`; render();
           const buf = await (await api('/contents/' + encPath(f.path), { accept: 'application/vnd.github.raw' })).arrayBuffer();
-          try { cache.files[f.path] = Object.assign({ sha: f.sha, name: f.name }, pack(await window.RaboParser.parsePdf(lib, new Uint8Array(buf)))); }
+          try { cache.files[f.path] = { sha: f.sha, name: f.name, parts: (await window.RaboParser.parsePdfAll(lib, new Uint8Array(buf))).map(pack) }; }
           catch (e) { cache.files[f.path] = { sha: f.sha, name: f.name, error: 'Geen Rabobank-afschrift of onleesbaar' }; }
         }
       }
@@ -922,6 +960,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
         <div><span class="kicker">Over</span><span class="mid num ${diff < 0 ? 'neg' : ''}">${money(diff)}</span></div>
       </section>
       ${incomeCard()}
+      ${(data.accounts || []).map(savingsCard).join('')}
       <section class="panel list">
         <button class="row-btn" data-act="pin">
           <span class="ic" style="background:var(--accent)">€</span>
@@ -976,14 +1015,61 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   }
 
   // ---------- saldo ----------
-  function balanceSeries() {
-    const sts = data.statements.filter(s => typeof s.start === 'number').sort((a, b) => isoOf(a.from).localeCompare(isoOf(b.from)));
-    if (!sts.length || data.txs.some(t => !t.st)) return [];
+  // ---------- spaarrekening (of andere extra rekening) ----------
+  function savingsCard(acc) {
+    const pts = balanceSeries(acc);
+    if (!pts.length) return '';
+    const last = pts[pts.length - 1];
+    const out = acc.txs.filter(t => t.amount < 0);
+    const outPeriod = -out.filter(t => periodOf(t.date) === ui.month).reduce((s, t) => s + t.amount, 0);
+    const outTotal = -out.reduce((s, t) => s + t.amount, 0);
+    const since = acc.statements[0] ? isoOf(acc.statements[0].from) : pts[0].date;
+    // grafiek: saldo per dag over de hele periode waarvan we afschriften hebben
+    const W = 360, H = 120, padL = 40, padB = 18, padT = 8;
+    const vals = pts.map(p => p.bal);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const step = niceStep(Math.max(1, (hi - lo) / 3));
+    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step; if (hi === lo) hi = lo + step;
+    const x = i => padL + (W - padL) * i / Math.max(1, pts.length - 1);
+    const y = v => padT + (H - padT - padB) * (hi - v) / (hi - lo);
+    let grid = '';
+    for (let v = lo; v <= hi + 1; v += step) grid += `<line class="gridline" x1="${padL}" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text x="${padL - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${String(Math.round(v / 100000 * 10) / 10).replace('.', ',')}k</text>`;
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.bal).toFixed(1)}`).join('');
+    const ticks = pts.map((p, i) => {
+      const d = p.date;
+      return d.slice(8, 10) === '01' && (+d.slice(5, 7) % 3 === 1 || i === 0) ? `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : 'middle'}">${monthShort(d.slice(0, 7))}${d.slice(5, 7) === '01' || i === 0 ? ' ’' + d.slice(2, 4) : ''}</text>` : '';
+    }).join('');
+    const name = (data.namen || {})[acc.iban] || 'Spaarrekening';
+    return `<section class="section">
+      <div class="section-head"><h2>${esc(name)}</h2><span class="hint">${esc(acc.product || 'Rabobank')} · ${esc(acc.iban.replace(/(.{4})/g, '$1 ').trim())}</span></div>
+      <div class="panel balance">
+        <div class="row">
+          <div style="display:grid;gap:2px"><span class="kicker">Saldo op ${esc(shortDate(last.date))}</span><span class="big num">${money(last.bal)}</span></div>
+          <span class="delta" style="display:grid;gap:2px">
+            <span>afgehaald deze periode: <b class="num">${money(outPeriod)}</b></span>
+            <span>afgehaald totaal: <b class="num">${money(outTotal)}</b> sinds ${esc(shortDate(since))} ${since.slice(0, 4)}</span>
+          </span>
+        </div>
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verloop saldo ${esc(name)}">
+          ${grid}
+          <path d="${line}" style="fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linejoin:round"/>
+          <circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(last.bal).toFixed(1)}" r="3.5" style="fill:var(--accent);stroke:var(--surface);stroke-width:1.5"/>
+          ${ticks}
+        </svg>
+        <button class="btn small" data-savings="${esc(acc.iban)}" type="button" style="justify-self:start">Bekijk alle bij- en afschrijvingen (${acc.txs.length})</button>
+      </div>
+    </section>`;
+  }
+
+  function balanceSeries(acc) {
+    acc = acc || data;
+    const sts = acc.statements.filter(s => typeof s.start === 'number').sort((a, b) => isoOf(a.from).localeCompare(isoOf(b.from)));
+    if (!sts.length || acc.txs.some(t => !t.st)) return [];
     const pts = [];
     for (const s of sts) {
       const from = isoOf(s.from), to = isoOf(s.to);
       const perDay = {};
-      for (const t of data.txs) {
+      for (const t of acc.txs) {
         if (t.st !== s.from) continue;
         const d = t.date < from ? from : t.date > to ? to : t.date;
         perDay[d] = (perDay[d] || 0) + t.amount;
@@ -1544,9 +1630,12 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       for (const f of files) {
         try {
           const bytes = new Uint8Array(await f.arrayBuffer());
-          const r = await window.RaboParser.parsePdf(lib, bytes.slice());
-          const ym = isoOf(r.from).slice(0, 7);
-          if (Object.values(cache.files).some(x => x.statement && x.statement.from === r.from)) {
+          const rs = await window.RaboParser.parsePdfAll(lib, bytes.slice());
+          const ym = isoOf(rs[0].from).slice(0, 7);
+          // staan alle rekeningen uit deze PDF er al in?
+          const known = new Set();
+          for (const x of Object.values(cache.files)) for (const p of partsOf(x)) known.add(p.statement.iban + '|' + p.statement.from);
+          if (rs.every(r => known.has(r.iban + '|' + r.from))) {
             msgs.push(`<b style="text-transform:capitalize">${esc(monthName(ym))}</b>: stond er al in`);
             continue;
           }
@@ -1555,14 +1644,15 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
           const path = PDF_DIR + '/' + (cache.files[PDF_DIR + '/' + safeName] ? `afschrift-${ym}-${Date.now()}.pdf` : safeName);
           const res = await api('/contents/' + encPath(path), { method: 'PUT', body: JSON.stringify({ message: 'Afschrift ' + monthName(ym) + ' toegevoegd', content: b64FromBytes(bytes) }) });
           const sha = (await res.json()).content.sha;
-          cache.files[path] = Object.assign({ sha, name: path.split('/').pop() }, pack(r));
+          cache.files[path] = { sha, name: path.split('/').pop(), parts: rs.map(pack) };
           const before = data.txs.length;
           rebuild();
           const n = data.txs.length - before;
           added += n;
-          if (!r.check.ok) warn = true;
-          msgs.push(`<b style="text-transform:capitalize">${esc(monthName(ym))}</b>: ${n} nieuw, opgeslagen in GitHub${r.check.ok ? '' : ' (totalen kloppen niet helemaal, controleer dit afschrift)'}`);
-          if (!ui.month || ym > ui.month) ui.month = ym;
+          const ok = rs.every(r => r.check.ok);
+          if (!ok) warn = true;
+          const extra = rs.length > 1 ? ` (+ ${rs.length - 1} andere rekening${rs.length > 2 ? 'en' : ''})` : '';
+          msgs.push(`<b style="text-transform:capitalize">${esc(monthName(ym))}</b>: ${n} nieuw${extra}, opgeslagen in GitHub${ok ? '' : ' (totalen kloppen niet helemaal, controleer dit afschrift)'}`);
         } catch (e) {
           warn = true;
           const known = e.status || e.offline || (e.message && e.message.includes('Rabobank'));
@@ -1593,8 +1683,14 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   document.getElementById('next').onclick = () => step(1);
 
   view.addEventListener('click', e => {
-    const el = e.target.closest('[data-act],[data-cat],[data-tx],[data-group],[data-rule],[data-unclear],[data-editcat]');
+    const el = e.target.closest('[data-act],[data-cat],[data-tx],[data-group],[data-rule],[data-unclear],[data-editcat],[data-savings]');
     if (!el) return;
+    if (el.dataset.savings) {
+      const acc = (data.accounts || []).find(a => a.iban === el.dataset.savings);
+      if (!acc) return;
+      const out = -acc.txs.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0), inn = acc.txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+      return listSheet((data.namen || {})[acc.iban] || 'Spaarrekening', `afgehaald ${money(out)} · erbij ${money(inn)}`, acc.txs);
+    }
     if (el.dataset.unclear) {
       const v = unclearGroups().find(g => g.key === el.dataset.unclear);
       return v && listSheet(v.name, `${v.txs.length} betalingen · ${money(v.total)}`, v.txs);

@@ -58,6 +58,26 @@
     return pages;
   }
 
+  // soort rekening, de regel onder de titel, bijv. "Rabo Standaard" of "Rabo BeleggersRekening"
+  function productName(items) {
+    const title = items.find(i => /Rekeningafschrift$/.test(i.str) && i.y > 740);
+    if (!title) return '';
+    const below = items.find(i => Math.abs(i.x - title.x) < 2 && i.y < title.y - 8 && i.y > title.y - 20);
+    return below ? below.str : '';
+  }
+
+  // Eén PDF kan afschriften van meerdere rekeningen bevatten ("RA_A_accounts_…").
+  // Een nieuw afschrift begint op een pagina met de titel "Rekeningafschrift" (niet "vervolg …").
+  function splitStatements(pages) {
+    const groups = [];
+    for (const items of pages) {
+      const isStart = items.some(i => i.str === 'Rekeningafschrift' && i.y > 740);
+      if (isStart || !groups.length) groups.push([]);
+      groups[groups.length - 1].push(items);
+    }
+    return groups;
+  }
+
   function parsePages(pages) {
     const first = pages[0] || [];
     const header = {
@@ -68,6 +88,7 @@
       totalCredit: parseAmount(valueBelow(first, 'Totaal bijgeschreven') || '0'),
       startBalance: parseBalance(valueBelow(first, 'Beginsaldo')),
       endBalance: parseBalance(valueBelow(first, 'Eindsaldo')),
+      product: productName(first),
     };
     if (!/^\d{2}-\d{2}-\d{4}$/.test(header.from || '') || !header.iban.includes('RABO')) {
       throw new Error('Dit lijkt geen Rabobank rekeningafschrift te zijn.');
@@ -148,7 +169,12 @@
     return parsePages(await extractPages(pdfjsLib, data));
   }
 
-  const api = { parsePdf, parsePages, extractPages };
+  // alle afschriften in de PDF, één per rekening
+  async function parsePdfAll(pdfjsLib, data) {
+    return splitStatements(await extractPages(pdfjsLib, data)).map(parsePages);
+  }
+
+  const api = { parsePdf, parsePdfAll, parsePages, extractPages };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RaboParser = api;
 })(this);
