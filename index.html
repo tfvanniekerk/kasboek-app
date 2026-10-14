@@ -1,0 +1,1565 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c5a61">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
+<title>Mijn Kasboek</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kasboek">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: één smalle kolom zoals een bankapp, drie tabs onderaan, overzicht eerst en details per tik. */
+:root {
+  --bg: #eef1f2;
+  --surface: #ffffff;
+  --ink: #15202a;
+  --muted: #5b6873;
+  --line: #dbe1e5;
+  --accent: #1c5a61;
+  --accent-ink: #ffffff;
+  --accent-soft: #d9e9ea;
+  --pos: #23744f;
+  --neg: #ad3434;
+  --warn-bg: #fbf0d9;
+  --warn-ink: #7a5310;
+  --shadow: 0 1px 2px rgba(21, 32, 42, .06), 0 4px 14px rgba(21, 32, 42, .05);
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418; --surface: #161f25; --ink: #e5ebee; --muted: #93a0a9; --line: #253139;
+    --accent: #79bcc2; --accent-ink: #0e1418; --accent-soft: #1b3236; --pos: #6cc298; --neg: #ec8585;
+    --warn-bg: #3a2f17; --warn-ink: #f0cf8a; --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418; --surface: #161f25; --ink: #e5ebee; --muted: #93a0a9; --line: #253139;
+  --accent: #79bcc2; --accent-ink: #0e1418; --accent-soft: #1b3236; --pos: #6cc298; --neg: #ec8585;
+  --warn-bg: #3a2f17; --warn-ink: #f0cf8a; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; -webkit-text-size-adjust: 100%; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.app { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 12px calc(84px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 18px; }
+.stack { display: grid; gap: 18px; }
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 1.45rem; letter-spacing: -.01em; margin: 0; }
+.brandwrap { display: grid; gap: 4px; justify-items: start; }
+.sync { border: 0; background: none; padding: 0; font-size: .72rem; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+.sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.sync[data-state="ok"]::before { background: var(--pos); }
+.sync[data-state="opslaan"]::before, .sync[data-state="laden"]::before { background: var(--accent); }
+.sync[data-state="fout"] { color: var(--neg); }
+.sync[data-state="fout"]::before { background: var(--neg); }
+.sync[data-state="geen"] { display: none; }
+.brand small { display: block; font-family: var(--font-body); font-weight: 500; font-size: .75rem; color: var(--muted); letter-spacing: .02em; }
+
+.monthnav { display: flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.monthnav button { border: 0; background: none; width: 34px; height: 34px; border-radius: 50%; font-size: 1.1rem; line-height: 1; }
+.monthnav button:disabled { opacity: .3; cursor: default; }
+.monthnav button:not(:disabled):hover { background: var(--accent-soft); }
+.monthnav .label { min-width: 118px; text-align: center; font-weight: 600; font-size: .9rem; text-transform: capitalize; }
+
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.05rem; margin: 0; letter-spacing: -.005em; text-wrap: balance; }
+.section { display: grid; gap: 10px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.hint { color: var(--muted); font-size: .82rem; }
+p.hint { margin: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.kicker { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.big { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.7rem, 7vw, 2.2rem); letter-spacing: -.02em; line-height: 1.1; }
+.mid { font-family: var(--font-display); font-weight: 500; font-size: 1.15rem; }
+.delta { font-size: .8rem; color: var(--muted); }
+.delta b { font-weight: 600; }
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+
+/* Samenvatting */
+.summary { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1px; background: var(--line); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
+.summary > div { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; min-width: 0; }
+.summary .main { grid-row: span 2; align-content: center; }
+
+/* Saldo */
+.balance { padding: 14px 16px 10px; display: grid; gap: 8px; }
+.balance .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.balance svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.balance svg text { fill: var(--muted); font-family: var(--font-body); font-size: 10px; }
+.balance .gridline { stroke: var(--line); stroke-width: 1; }
+.balance .zero { stroke: var(--neg); stroke-width: 1; stroke-dasharray: 2 3; opacity: .7; }
+.balance .readout { font-size: .82rem; color: var(--muted); min-height: 1.2em; }
+.balance .readout b { color: var(--ink); font-weight: 600; }
+.legend { display: flex; gap: 14px; font-size: .76rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Rijen */
+.list { display: grid; }
+.row-btn { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 10px 16px; border: 0; background: none; width: 100%; text-align: left; border-top: 1px solid var(--line); }
+.list > .row-btn:first-child, .list > .day + .row-btn { border-top: 0; }
+button.row-btn:hover { background: var(--accent-soft); }
+.ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: .85rem; color: #fff; flex: none; }
+.who { min-width: 0; }
+.who b { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who small { display: block; color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amt { font-weight: 600; text-align: right; white-space: nowrap; }
+.amt.in { color: var(--pos); }
+.amtcol { display: grid; justify-items: end; gap: 1px; }
+.paid { font-size: .72rem; font-weight: 600; color: var(--pos); white-space: nowrap; }
+.unpaid { font-size: .72rem; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.day { display: flex; justify-content: space-between; padding: 10px 16px 6px; font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: capitalize; border-top: 1px solid var(--line); }
+.list .day:first-child { border-top: 0; }
+.more { margin: 6px 16px 14px; }
+
+/* Categoriebalken */
+.cat { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 9px 16px; border: 0; background: none; text-align: left; width: 100%; }
+.cat:hover { background: var(--accent-soft); }
+.cat .nm { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 500; }
+.cat .nm span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.cat .amt { font-weight: 600; }
+.track { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.track i { display: block; height: 100%; border-radius: 3px; }
+.cat .pct { color: var(--muted); font-weight: 400; font-size: .8rem; margin-left: 6px; }
+
+.stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.stats3 > div { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; min-width: 0; align-content: start; }
+
+/* Regels */
+.rule { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); }
+.rule:first-child { border-top: 0; }
+.rule.off .rule-txt { opacity: .45; }
+.rule-txt { min-width: 0; border: 0; background: none; text-align: left; padding: 0; display: grid; gap: 2px; }
+.rule-txt b { font-weight: 600; overflow-wrap: anywhere; }
+.rule-txt small { color: var(--muted); font-size: .8rem; }
+.arrow { color: var(--muted); }
+.tag { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.switch { position: relative; width: 44px; height: 26px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 13px; background: var(--line); transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(18px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.edit { color: var(--muted); font-size: 1.2rem; border: 0; background: none; padding: 4px 2px; }
+
+/* Velden en knoppen */
+.field { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+label.fld { display: grid; gap: 6px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 14px; font-weight: 600; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--neg); }
+.btn.small { padding: 6px 12px; font-size: .85rem; }
+.btn.block { width: 100%; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: .88rem; }
+.check input { margin-top: 3px; }
+
+/* Lege staat & meldingen */
+.empty { padding: 22px 20px; display: grid; gap: 14px; }
+.empty h2 { font-size: 1.3rem; font-weight: 700; }
+.steps { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; color: var(--muted); }
+.steps b { color: var(--ink); font-weight: 600; }
+.notice { padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); font-size: .88rem; }
+.notice.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.badge { font-size: .72rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.badge.ok { background: var(--accent-soft); color: var(--accent); }
+.badge.warn { background: var(--warn-bg); color: var(--warn-ink); }
+
+/* Tabbalk */
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 5; }
+nav.tabs .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+nav.tabs button { border: 0; background: none; padding: 9px 4px 10px; display: grid; justify-items: center; gap: 3px; font-size: .74rem; font-weight: 600; color: var(--muted); }
+nav.tabs button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+nav.tabs button[aria-current="page"] { color: var(--accent); }
+nav.tabs .ico { position: relative; display: inline-flex; }
+nav.tabs .count { position: absolute; top: -5px; right: -12px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--neg); color: #fff; font-size: .66rem; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Indelen */
+.todo { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 12px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); }
+.todo:first-child { border-top: 0; }
+.todo .who { border: 0; background: none; padding: 0; text-align: left; }
+.todo select { grid-column: 2 / -1; padding: 8px 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 11px; font-size: .82rem; font-weight: 500; }
+.notice button.link { border: 0; background: none; padding: 0; margin-left: 6px; font-weight: 600; color: var(--accent); text-decoration: underline; }
+
+/* Detailvenster */
+.sheet-bg { position: fixed; inset: 0; background: rgba(8, 14, 18, .45); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 560px; border-radius: 18px 18px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 14px; max-height: 88%; overflow-y: auto; }
+.sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); justify-self: center; }
+.sheet .list { margin-inline: -16px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: .88rem; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .track i { transition: width .35s ease; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch span, .switch span::after { transition: none; }
+}
+</style>
+
+<div class="app" id="app">
+  <div class="notice warn" id="err" role="alert" hidden></div>
+  <header class="top">
+    <div class="brandwrap">
+      <h1 class="brand">Kasboek<small id="acct">Rabobank betaalrekening</small></h1>
+      <button class="sync" id="sync" type="button" data-state="geen"></button>
+    </div>
+    <div class="monthnav" id="monthnav" hidden>
+      <button id="prev" aria-label="Vorige maand">‹</button>
+      <span class="label num" id="monthlabel"></span>
+      <button id="next" aria-label="Volgende maand">›</button>
+    </div>
+  </header>
+  <main id="view"></main>
+</div>
+
+<nav class="tabs" aria-label="Onderdelen">
+  <div class="in">
+    <button data-tab="overzicht" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 8-8M15 7h5v5"/></svg>Overzicht</button>
+    <button data-tab="soorten"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/></svg>Soorten kosten</button>
+    <button data-tab="indelen"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><span class="count" id="todo-count" hidden></span></span>Indelen</button>
+    <button data-tab="regels"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Regels</button>
+  </div>
+</nav>
+
+<input type="file" id="fileinput" accept="application/pdf,.pdf" multiple hidden>
+
+<script>
+// Laat fouten zien op het scherm, zodat je er een screenshot van kunt maken.
+window.__kbErr = function (msg) {
+  var el = document.getElementById('err');
+  if (!el) return;
+  var div = document.createElement('div');
+  div.textContent = String(msg || 'onbekende fout').slice(0, 300);
+  el.innerHTML = '<b>Er ging iets mis.</b> Maak een screenshot van deze melding en stuur hem naar Claude.';
+  el.appendChild(div);
+  el.hidden = false;
+};
+window.addEventListener('error', function (e) { window.__kbErr((e.message || 'fout') + (e.lineno ? ' (regel ' + e.lineno + ')' : '')); });
+window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.reason && e.reason.message || e.reason); });
+</script>
+<script>
+// Parser voor Rabobank rekeningafschriften (PDF) op basis van pdf.js tekstposities.
+(function (root) {
+  const COL = { date: [30, 60], type: [62, 85], iban: [85, 200], desc: [200, 415], debit: [415, 485], credit: [485, 580] };
+  const inCol = (x, c) => x >= COL[c][0] && x < COL[c][1];
+
+  function parseAmount(s) {
+    return Math.round(parseFloat(s.replace(/\./g, '').replace(',', '.')) * 100);
+  }
+
+  function parseBalance(s) {
+    const m = (s || '').match(/([\d.]+,\d{2})\s*(CR|D)?/);
+    if (!m) return null;
+    return (m[2] === 'D' ? -1 : 1) * parseAmount(m[1]);
+  }
+
+  function groupLines(items) {
+    // items: [{x,y,str}] -> lines sorted top-down, each line items sorted by x
+    const sorted = items.slice().sort((a, b) => b.y - a.y || a.x - b.x);
+    const lines = [];
+    for (const it of sorted) {
+      const last = lines[lines.length - 1];
+      if (last && Math.abs(last.y - it.y) < 2.5) last.items.push(it);
+      else lines.push({ y: it.y, items: [it] });
+    }
+    for (const l of lines) l.items.sort((a, b) => a.x - b.x);
+    return lines;
+  }
+
+  function joinDesc(items) {
+    let out = '';
+    let prevEnd = null;
+    for (const it of items) {
+      if (prevEnd !== null && it.x - prevEnd > 1) out += ' ';
+      out += it.str;
+      prevEnd = it.x + it.w;
+    }
+    return out;
+  }
+
+  function valueBelow(items, label) {
+    const l = items.find(i => i.str === label);
+    if (!l) return null;
+    const cand = items.filter(i => i.y < l.y - 4 && i.y > l.y - 16 && i.x + i.w > l.x - 15 && i.x < l.x + l.w + 15)
+      .sort((a, b) => a.x - b.x);
+    return cand.map(c => c.str).join(' ');
+  }
+
+  async function extractPages(pdfjsLib, data) {
+    const doc = await pdfjsLib.getDocument({ data, verbosity: 0 }).promise;
+    const pages = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const tc = await page.getTextContent();
+      pages.push(tc.items.filter(i => i.str && i.str.trim()).map(i => ({
+        x: i.transform[4], y: i.transform[5], w: i.width, str: i.str.trim()
+      })));
+    }
+    return pages;
+  }
+
+  function parsePages(pages) {
+    const first = pages[0] || [];
+    const header = {
+      iban: (valueBelow(first, 'IBAN / Rekeningnummer') || '').replace(/\s*EUR$/, '').replace(/\s+/g, ''),
+      from: valueBelow(first, 'Datum vanaf'),
+      to: valueBelow(first, 'Datum tot en met'),
+      totalDebit: parseAmount(valueBelow(first, 'Totaal afgeschreven') || '0'),
+      totalCredit: parseAmount(valueBelow(first, 'Totaal bijgeschreven') || '0'),
+      startBalance: parseBalance(valueBelow(first, 'Beginsaldo')),
+      endBalance: parseBalance(valueBelow(first, 'Eindsaldo')),
+    };
+    if (!/^\d{2}-\d{2}-\d{4}$/.test(header.from || '') || !header.iban.includes('RABO')) {
+      throw new Error('Dit lijkt geen Rabobank rekeningafschrift te zijn.');
+    }
+    const [fd, fm, fy] = header.from.split('-').map(Number);
+    const [, tm, ty] = header.to.split('-').map(Number);
+
+    const txs = [];
+    let cur = null;
+    let done = false;
+    for (const items of pages) {
+      if (done) break;
+      const hdr = items.find(i => i.str === 'Naam/omschrijving');
+      const top = hdr ? hdr.y - 8 : 590;
+      let body = items.filter(i => i.y < top && i.y > 20);
+      const legend = body.find(i => /^[a-z]{2} = /.test(i.str));
+      if (legend) { body = body.filter(i => i.y > legend.y + 5); done = true; }
+      for (const line of groupLines(body)) {
+        const dateIt = line.items.find(i => inCol(i.x, 'date') && /^\d{2}-\d{2}$/.test(i.str));
+        if (dateIt) {
+          const [d, m] = dateIt.str.split('-').map(Number);
+          const year = (fy !== ty && m === tm) ? ty : fy;
+          cur = {
+            date: `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+            type: (line.items.find(i => inCol(i.x, 'type')) || {}).str || '',
+            counterIban: line.items.filter(i => inCol(i.x, 'iban')).map(i => i.str).join(' ').replace(/\s+/g, ''),
+            amount: 0,
+            lines: [],
+          };
+          for (const i of line.items) {
+            if (inCol(i.x + i.w, 'debit') && /^[\d.]+,\d{2}$/.test(i.str)) cur.amount = -parseAmount(i.str);
+            else if (inCol(i.x + i.w, 'credit') && /^[\d.]+,\d{2}$/.test(i.str)) cur.amount = parseAmount(i.str);
+          }
+          txs.push(cur);
+        }
+        if (!cur) continue;
+        const descItems = line.items.filter(i => inCol(i.x, 'desc'));
+        if (descItems.length) cur.lines.push(joinDesc(descItems));
+      }
+    }
+
+    const seen = {};
+    for (const t of txs) {
+      const vi = t.lines.findIndex(l => l.startsWith('Verwerkingsdatum'));
+      const lines = vi >= 0 ? t.lines.slice(0, vi) : t.lines;
+      t.raw = lines.join(' | ');
+      t.name = (lines[0] || '').trim();
+      t.details = lines.slice(1).join(' ');
+      if (t.type === 'bc' || t.type === 'ba' || t.type === 'ga') {
+        const loc = (lines[1] || '').match(/^(.*?),.*?(\d{2}:\d{2})/);
+        if (loc) { t.place = loc[1].trim(); t.time = loc[2]; }
+        const ap = t.details.match(/Appr\s*Cd:\s*(\w+)/);
+        t.ref = ap ? ap[1] : '';
+      } else {
+        const ref = t.details.match(/Transactiereferentie:\s*(\S+(?:\s\S+)?)/);
+        t.ref = ref ? ref[1] : '';
+      }
+      const key = [t.date, t.type, t.amount, t.name, t.ref].join('|');
+      seen[key] = (seen[key] || 0) + 1;
+      t.id = key + '|' + seen[key];
+      delete t.lines;
+    }
+
+    const sumDebit = -txs.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0);
+    const sumCredit = txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    return {
+      ...header,
+      transactions: txs,
+      check: {
+        sumDebit, sumCredit,
+        ok: sumDebit === header.totalDebit && sumCredit === header.totalCredit &&
+          (header.startBalance === null || header.endBalance === null || header.startBalance + sumCredit - sumDebit === header.endBalance),
+      },
+    };
+  }
+
+  async function parsePdf(pdfjsLib, data) {
+    return parsePages(await extractPages(pdfjsLib, data));
+  }
+
+  const api = { parsePdf, parsePages, extractPages };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.RaboParser = api;
+})(this);
+
+</script>
+<script>
+// Categorieën en automatische indeling op basis van naam en transactietype.
+// Alleen algemene trefwoorden staan hier; eigen trefwoorden komen uit kasboek.json in je privé-repository.
+(function (root) {
+  const CATEGORIES = [
+    { id: 'boodschappen', label: 'Boodschappen', kind: 'uit', color: '#2f7d5b' },
+    { id: 'horeca', label: 'Eten & drinken', kind: 'uit', color: '#c4572e' },
+    { id: 'koffie', label: 'Koffie & lunch', kind: 'uit', color: '#a8763e' },
+    { id: 'vervoer', label: 'Vervoer & tanken', kind: 'uit', color: '#3a6ea5' },
+    { id: 'tabak', label: 'Tabak', kind: 'uit', color: '#7a6a58' },
+    { id: 'sport', label: 'Sport & golf', kind: 'uit', color: '#5d9c3a' },
+    { id: 'uitgaan', label: 'Uitgaan & media', kind: 'uit', color: '#8e4fa3' },
+    { id: 'winkelen', label: 'Winkelen', kind: 'uit', color: '#c2417a' },
+    { id: 'verzorging', label: 'Verzorging', kind: 'uit', color: '#3d9a9a' },
+    { id: 'wonen', label: 'Huur & wonen', kind: 'uit', color: '#4b5a8c' },
+    { id: 'vastelasten', label: 'Verzekering & bank', kind: 'uit', color: '#5f7480' },
+    { id: 'studie', label: 'Studie & vereniging', kind: 'uit', color: '#b38a1f' },
+    { id: 'vrienden', label: 'Tikkies & vrienden', kind: 'uit', color: '#d07a4a' },
+    { id: 'boetes', label: 'Boetes & incasso', kind: 'uit', color: '#b33a3a' },
+    { id: 'contant', label: 'Contant geld', kind: 'uit', color: '#6d7d55' },
+    { id: 'overboeking', label: 'Overboekingen', kind: 'uit', color: '#8a8f99' },
+    { id: 'overig', label: 'Overig', kind: 'uit', color: '#a3a7ae' },
+    { id: 'salaris', label: 'Salaris', kind: 'in', color: '#2f7d5b' },
+    { id: 'duo', label: 'Studiefinanciering', kind: 'in', color: '#3a6ea5' },
+    { id: 'toeslag', label: 'Belastingdienst', kind: 'in', color: '#b38a1f' },
+    { id: 'inkomen', label: 'Overig inkomen', kind: 'in', color: '#8a8f99' },
+    { id: 'eigen', label: 'Eigen rekening', kind: 'eigen', color: '#a3a7ae' },
+  ];
+
+  // [categorie, regex] - eerste match wint
+  const RULES = [
+    ['koffie', /^maas\b|bedrijfsrest|ah to ?go|kiosk|avolta|air ?side|autogrill/],
+    ['boodschappen', /albert heijn|^ah\b|jumbo|vomar|dirk v|^plus\b|aldi|lidl|coop\b|incoop|spar\b|ekoplaza|hoogvliet|picnic|slagerij|bakker|marché|feinkost/],
+    ['tabak', /tabak|sigar|smoke|hajenius|souvenier/],
+    ['vervoer', /^nlov|ov-?chip|\bns\b|ns groep|ns reizigers|nsautomaat|uber|bolt\.eu|taxi|parkeer|fiets|easyjet|klm|transavia|esso|shell|^bp\b|total\b|aral|agip|tankstel|kuster energy|greenwheels|swapfiets|jachthaven|marina|centraal bureau rijvaard|vaarbewijs/],
+    ['sport', /golf|hole19|sportcity|basic-?fit/],
+    ['uitgaan', /path[eé]|ticket|arena|entertai|podimo|spotify|netflix|disney|videoland|cm\.com|breeze/],
+    ['horeca', /caf[eé]|\bbar\b|bar |restau|grill|pub\b|brasserie|eethuis|taproom|mcdonald|febo|subway|^bk \d|snack|cafetaria|frietje|smullers|thuisbezorgd|strandpav|pizza|sushi|bistro|kitchen|deli|toilet/],
+    ['verzorging', /barber|kapsalon|kapper|treatwell|etos|kruidvat|apotheek|tandarts|huisarts/],
+    ['winkelen', /zalando|bol\.?com|bolcom|vinted|marktplaats|temu|ikea|action|hema|kringloop|vintage|primark|h&m|coolblue|mediamarkt|apple|amazon|stripe/],
+    ['vastelasten', /interpolis|centraal beheer|zilveren kruis|cz\b|vgz|menzis|ziggo|kpn|odido|vattenfall|eneco|essent|waternet|^rabobank$|kosten/],
+    ['studie', /universiteit|hogeschool|studenten|vereniging|duo\b/],
+    ['boetes', /cjib|intrum|incasso|deurwaarder|derdengelden/],
+  ];
+
+  const PREFIX = /^(ccv\*|bck\*|sumup \*|zettle_\*|pay\.nl\*|c&m\*|bng\*|ubr\* |sq \*|sp )/i;
+
+  function cleanName(t) {
+    let n = (t.name || '').trim();
+    if (/^NLOV/.test(n)) return 'OV-betaling';
+    n = n.replace(PREFIX, '').replace(/\s+(\d{3,}|fil\d+)$/i, '').replace(/\s+via\s+.*$/i, '').trim();
+    if (n === n.toUpperCase() && /[A-Z]{3}/.test(n)) n = n.toLowerCase().replace(/(^|[\s\-'&*.])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+    return n || '(onbekend)';
+  }
+
+  function ruleKey(t) {
+    if (/^NLOV/.test(t.name || '')) return 'ov-betaling';
+    return cleanName(t).toLowerCase();
+  }
+
+  // extra: [[categorie, regex]] met eigen trefwoorden; die gaan voor de algemene regels
+  function autoCategory(t, extra) {
+    const name = (t.name || '').toLowerCase().replace(PREFIX, '');
+    if (t.type === 'tb') return 'eigen';
+    if (t.type === 'ga') return 'contant';
+    if (t.type === 'sb') return 'salaris';
+    if (/duo hoofdrekening/.test(name)) return t.amount > 0 ? 'duo' : 'studie';
+    if (/belastingdienst/.test(name)) return t.amount > 0 ? 'toeslag' : 'vastelasten';
+    const isP2P = /via tikkie|betaalverz|via ing |via rabo|wiebetaaltwat|via bunq/.test(name) || t.type === 'bv' || t.type === 'we';
+    for (const [cat, re] of (extra || []).concat(RULES)) {
+      if (re.test(name)) {
+        if (isP2P && !['studie', 'vervoer'].includes(cat)) break;
+        return cat;
+      }
+    }
+    if (isP2P) return 'vrienden';
+    if (t.amount > 0) return t.type === 'st' ? 'overig' : 'inkomen';
+    if (['bg', 'db', 'cb'].includes(t.type)) return 'overboeking';
+    return 'overig';
+  }
+
+  const api = { CATEGORIES, autoCategory, cleanName, ruleKey };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Kasboek = api;
+})(this);
+
+</script>
+<script>
+(function () {
+  const { CATEGORIES, autoCategory, cleanName, ruleKey } = window.Kasboek;
+  const STORE = 'kasboek.v1';
+  // legacy-build: werkt ook op oudere iPhones
+  const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/';
+  const PIN_TYPES = ['bc', 'ba'];
+  const RECURRING_TYPES = ['ei', 'eb', 'bg', 'db'];
+  const CUSTOM_COLORS = ['#6a5acd', '#b5651d', '#2e8b8b', '#a0446b', '#55803a', '#7d6a2f'];
+  const TYPE_LABEL = { ba: 'Betaalautomaat', bc: 'Pinpas (contactloos)', bg: 'Overboeking', bv: 'Betaalverzoek', cb: 'Bijschrijving', cc: 'Creditcard', db: 'Diverse boekingen', eb: 'Incasso (zakelijk)', ec: 'Online betaling', ei: 'Incasso', ga: 'Geldautomaat', gb: 'Geldautomaat buitenland', id: 'iDEAL', sb: 'Salaris', sp: 'Spoedbetaling', st: 'Storno incasso', tb: 'Eigen rekening', te: 'Terugboeking', wb: 'Wereldbetaling', we: 'Wero', wr: 'Wero' };
+
+
+  const eur = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' });
+  const eur0 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  const money = (c, round) => (c < 0 ? '−' : '') + (round ? eur0 : eur).format(Math.abs(c) / 100);
+  const signed = c => (c > 0 ? '+' : '') + money(c);
+  const monthName = ym => new Date(ym + '-15').toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
+  const monthShort = ym => new Date(ym + '-15').toLocaleDateString('nl-NL', { month: 'short' }).replace('.', '');
+  const dayName = d => new Date(d + 'T12:00').toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' });
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const isoOf = dmy => dmy.split('-').reverse().join('-');
+  const toIso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const initial = s => esc(String(s).replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase() || '·');
+
+  function nextDay(from, day, earliest) {
+    const d = new Date(from.getFullYear(), from.getMonth(), day);
+    if (from.getDate() > day) d.setMonth(d.getMonth() + 1);
+    return { date: toIso(d), approx: true, earliest };
+  }
+  function nextFirstTuesday(from) {
+    for (let m = 0; m < 2; m++) {
+      const d = new Date(from.getFullYear(), from.getMonth() + m, 1);
+      while (d.getDay() !== 2) d.setDate(d.getDate() + 1);
+      if (toIso(d) >= toIso(from)) return { date: toIso(d) };
+    }
+  }
+
+  // ---------- opslag: je privé GitHub-repository ----------
+  // kasboek.json (regels, soorten, inkomsten, trefwoorden) en afschriften/*.pdf staan in je repository.
+  // Op dit apparaat bewaren we alleen de koppeling en een kopie, zodat de app snel opent.
+  const CFG_KEY = 'kasboek.github', CACHE_KEY = 'kasboek.cache.v2', COPY_KEY = 'kasboek.instellingen';
+  const DATA_FILE = 'kasboek.json', PDF_DIR = 'afschriften';
+  const SETTINGS_KEYS = ['versie', 'ruleList', 'cats', 'overrides', 'nextRule', 'inkomsten', 'trefwoorden'];
+  const defaults = () => ({ versie: 1, ruleList: [], cats: [], overrides: {}, nextRule: 1, inkomsten: [], trefwoorden: {} });
+  const readLS = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  const writeLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+
+  let gh = readLS(CFG_KEY);
+  let cache = readLS(CACHE_KEY) || { files: {} };
+  let settingsSha = null;
+  let data = Object.assign({ txs: [], statements: [] }, defaults());
+  let extraRules = [];
+
+  function applySettings(s) {
+    const d = defaults();
+    for (const k of SETTINGS_KEYS) data[k] = s && s[k] !== undefined ? s[k] : d[k];
+    extraRules = [];
+    for (const [cat, src] of Object.entries(data.trefwoorden || {})) {
+      try { extraRules.push([cat, new RegExp(src)]); } catch (e) { showError('Trefwoorden voor ' + cat + ' kloppen niet: ' + e.message); }
+    }
+  }
+  const settingsOnly = () => Object.fromEntries(SETTINGS_KEYS.map(k => [k, data[k]]));
+
+  // transacties opbouwen uit alle ingelezen afschriften
+  function rebuild() {
+    const entries = Object.values(cache.files).filter(f => f.statement).sort((a, b) => isoOf(a.statement.from).localeCompare(isoOf(b.statement.from)));
+    const seen = new Set();
+    data.statements = []; data.txs = [];
+    for (const f of entries) {
+      data.statements.push(f.statement);
+      for (const t of f.txs) if (!seen.has(t.id)) { seen.add(t.id); data.txs.push(t); }
+    }
+  }
+  function pack(r) {
+    const ym = isoOf(r.from).slice(0, 7);
+    return {
+      statement: { ym, from: r.from, to: r.to, iban: r.iban, start: r.startBalance, end: r.endBalance, n: r.transactions.length, debit: r.totalDebit, credit: r.totalCredit, ok: r.check.ok },
+      txs: r.transactions.map(t => ({ id: t.id, st: r.from, date: t.date, type: t.type, amount: t.amount, name: t.name, details: (t.details || '').slice(0, 220), place: t.place, time: t.time, counterIban: t.counterIban })),
+    };
+  }
+  function saveCache() { if (!writeLS(CACHE_KEY, cache)) ui.storeError = true; }
+
+  // GitHub API
+  const API_MSG = {
+    401: 'De toegangssleutel klopt niet of is verlopen. Maak een nieuwe en koppel opnieuw.',
+    403: 'Deze sleutel mag niet bij je repository. Geef hem bij "Contents" toegang tot lezen en schrijven.',
+    404: 'Repository niet gevonden. Controleer je gebruikersnaam, de naam van de repository en of de sleutel toegang heeft tot deze repository.',
+  };
+  async function api(path, opts) {
+    opts = opts || {};
+    let res;
+    try {
+      res = await fetch((gh.api || 'https://api.github.com') + '/repos/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo) + path, {
+        method: opts.method || 'GET', body: opts.body, cache: 'no-store',
+        headers: Object.assign({ Authorization: 'Bearer ' + gh.token, Accept: opts.accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, opts.body ? { 'Content-Type': 'application/json' } : {}),
+      });
+    } catch (e) {
+      const err = new Error('Geen verbinding met GitHub. Controleer je internet.'); err.offline = true; throw err;
+    }
+    if (!res.ok) { const err = new Error(API_MSG[res.status] || 'GitHub gaf een fout (' + res.status + ').'); err.status = res.status; throw err; }
+    return res;
+  }
+  const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+  function b64FromBytes(u8) { let bin = ''; for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(bin); }
+  const b64FromText = s => b64FromBytes(new TextEncoder().encode(s));
+  const textFromB64 = b => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g, '')), c => c.charCodeAt(0)));
+
+  let sync = { state: gh ? 'laden' : 'geen' };
+  function setSync(state, msg) { sync = { state, msg }; paintSync(); }
+  function paintSync() {
+    const el = document.getElementById('sync');
+    if (!el) return;
+    const txt = { geen: 'Niet gekoppeld', laden: 'Ophalen uit GitHub…', opslaan: 'Opslaan in GitHub…', ok: 'Opgeslagen in GitHub', offline: 'Offline · laatste kopie', fout: 'Opslaan mislukt · tik voor info' }[sync.state] || '';
+    el.textContent = txt;
+    el.dataset.state = sync.state;
+  }
+
+  async function loadAll() {
+    if (!gh) return;
+    setSync('laden');
+    try {
+      try {
+        const j = await (await api('/contents/' + DATA_FILE)).json();
+        settingsSha = j.sha;
+        applySettings(JSON.parse(textFromB64(j.content)));
+        refreshIndex();
+        writeLS(COPY_KEY, settingsOnly());
+      } catch (e) { if (e.status !== 404) throw e; settingsSha = null; }
+      let list = [];
+      try { list = await (await api('/contents/' + PDF_DIR)).json(); } catch (e) { if (e.status !== 404) throw e; }
+      const pdfs = (Array.isArray(list) ? list : []).filter(f => f.type === 'file' && /\.pdf$/i.test(f.name));
+      for (const p of Object.keys(cache.files)) if (!pdfs.some(f => f.path === p)) delete cache.files[p];
+      const todo = pdfs.filter(f => !cache.files[f.path] || cache.files[f.path].sha !== f.sha);
+      if (todo.length) {
+        const lib = await getPdfjs();
+        let i = 0;
+        for (const f of todo) {
+          ui.loading = `Afschrift ${++i} van ${todo.length} lezen…`; render();
+          const buf = await (await api('/contents/' + encPath(f.path), { accept: 'application/vnd.github.raw' })).arrayBuffer();
+          try { cache.files[f.path] = Object.assign({ sha: f.sha, name: f.name }, pack(await window.RaboParser.parsePdf(lib, new Uint8Array(buf)))); }
+          catch (e) { cache.files[f.path] = { sha: f.sha, name: f.name, error: 'Geen Rabobank-afschrift of onleesbaar' }; }
+        }
+      }
+      saveCache(); rebuild();
+      ui.loading = null; ui.connectError = null;
+      setSync('ok');
+    } catch (e) {
+      ui.loading = null;
+      if (e.offline) setSync('offline'); else { setSync('fout', e.message); ui.connectError = e.message; }
+    }
+    render();
+  }
+
+  // instellingen opslaan in GitHub (kort wachten, zodat snelle wijzigingen samen gaan)
+  let saveTimer = null, saving = false, saveAgain = false;
+  function save() {
+    writeLS(COPY_KEY, settingsOnly());
+    clearTimeout(saveTimer);
+    if (gh) { setSync('opslaan'); saveTimer = setTimeout(pushSettings, 700); }
+    return true;
+  }
+  async function pushSettings() {
+    if (saving) { saveAgain = true; return; }
+    saving = true;
+    const body = sha => JSON.stringify(Object.assign({ message: 'Kasboek: instellingen bijgewerkt', content: b64FromText(JSON.stringify(settingsOnly(), null, 2) + '\n') }, sha ? { sha } : {}));
+    try {
+      let res;
+      try { res = await api('/contents/' + DATA_FILE, { method: 'PUT', body: body(settingsSha) }); }
+      catch (e) {
+        if (e.status !== 409 && e.status !== 422) throw e;
+        // iemand anders (of een ander apparaat) heeft het bestand net aangepast: nieuwste versie ophalen en overschrijven
+        let sha = null;
+        try { sha = (await (await api('/contents/' + DATA_FILE)).json()).sha; } catch (e2) { if (e2.status !== 404) throw e2; }
+        res = await api('/contents/' + DATA_FILE, { method: 'PUT', body: body(sha) });
+      }
+      settingsSha = (await res.json()).content.sha;
+      setSync('ok');
+    } catch (e) {
+      setSync(e.offline ? 'offline' : 'fout', e.message);
+    } finally {
+      saving = false;
+      if (saveAgain) { saveAgain = false; pushSettings(); }
+    }
+  }
+
+  // eerst de kopie op dit apparaat laten zien, daarna verversen uit GitHub
+  applySettings(readLS(COPY_KEY));
+  rebuild();
+
+  function incomeDefs() {
+    return (data.inkomsten || []).map(i => ({
+      cat: i.cat, label: i.label, when: i.wanneer || '',
+      next: from => i.eersteDinsdag ? nextFirstTuesday(from) : i.dag ? nextDay(from, i.dag) : null,
+    }));
+  }
+
+  const ui = { tab: 'overzicht', month: null, search: '', confirmWipe: false, status: null, storeError: false, loading: null, connectError: null };
+  try { const t = localStorage.getItem(STORE + '.tab'); if (['overzicht', 'soorten', 'indelen', 'regels'].includes(t)) ui.tab = t; } catch (e) {}
+
+  // ---------- indeling ----------
+  const allCats = () => CATEGORIES.concat(data.cats);
+  let CAT = {};
+  let memo = new Map();
+  function refreshIndex() { CAT = Object.fromEntries(allCats().map(c => [c.id, c])); memo = new Map(); }
+  refreshIndex();
+
+  // "Naam bevat": hele woorden, meerdere namen gescheiden door komma's
+  const termCache = new Map();
+  function termsOf(match) {
+    let res = termCache.get(match);
+    if (!res) {
+      res = String(match || '').split(',').map(s => s.trim()).filter(Boolean).map(s =>
+        new RegExp('(^|[^\\p{L}\\p{N}])' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^\\p{L}\\p{N}])', 'iu'));
+      termCache.set(match, res);
+    }
+    return res;
+  }
+  const ruleMatches = (r, t) => {
+    const res = termsOf(r.match);
+    if (!res.length) return false;
+    if (r.amount != null && Math.abs(t.amount) !== r.amount) return false;
+    const hay = t.name + ' ' + cleanName(t);
+    return res.some(re => re.test(hay));
+  };
+  function ruleFor(t) {
+    let hit = memo.get(t.id);
+    if (hit === undefined) { hit = data.ruleList.find(r => r.on && ruleMatches(r, t)) || null; memo.set(t.id, hit); }
+    return hit;
+  }
+  function catOf(t) {
+    if (data.overrides[t.id]) return data.overrides[t.id];
+    const r = ruleFor(t);
+    return (r && r.cat && CAT[r.cat]) ? r.cat : autoCategory(t, extraRules);
+  }
+  const catObj = id => CAT[id] || CAT.overig;
+  const months = () => [...new Set(data.txs.map(t => t.date.slice(0, 7)))].sort();
+  const inMonth = ym => data.txs.filter(t => t.date.startsWith(ym));
+
+  function totals(txs) {
+    let spent = 0, income = 0; const byCat = {};
+    for (const t of txs) {
+      const c = catObj(catOf(t));
+      if (c.kind === 'eigen') continue;
+      if (c.kind === 'uit') { spent -= t.amount; byCat[c.id] = (byCat[c.id] || 0) - t.amount; }
+      else if (t.amount > 0) income += t.amount;
+      else { spent -= t.amount; byCat.overig = (byCat.overig || 0) - t.amount; }
+    }
+    return { spent, income, byCat };
+  }
+
+  // ---------- render ----------
+  const view = document.getElementById('view');
+
+  function showError(e) { window.__kbErr(e && e.message ? e.message : e); }
+  function render() {
+    try { renderInner(); } catch (e) { showError(e); }
+  }
+  function renderInner() {
+    memo = new Map();
+    const ms = months();
+    if (!ui.month || !ms.includes(ui.month)) ui.month = ms[ms.length - 1] || null;
+    document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
+    const nav = document.getElementById('monthnav');
+    nav.hidden = !ms.length || ui.tab === 'regels' || ui.tab === 'indelen';
+    if (ms.length) {
+      document.getElementById('monthlabel').textContent = monthName(ui.month);
+      const i = ms.indexOf(ui.month);
+      document.getElementById('prev').disabled = i <= 0;
+      document.getElementById('next').disabled = i >= ms.length - 1;
+    }
+    const iban = data.statements[0] && data.statements[0].iban;
+    document.getElementById('acct').textContent = iban ? 'Rabobank · ' + iban.replace(/(.{4})/g, '$1 ').trim() : 'Rabobank betaalrekening';
+
+    paintSync();
+    if (!gh) view.innerHTML = setupView();
+    else if (!data.txs.length && ui.loading) view.innerHTML = `<section class="panel empty"><h2>Even geduld</h2><p class="hint">${esc(ui.loading)}</p><p class="hint">De eerste keer haalt de app al je afschriften op en leest ze. Daarna gaat het meteen.</p></section>`;
+    else if (!data.txs.length && ui.tab !== 'regels') view.innerHTML = emptyView();
+    else view.innerHTML = ({ overzicht: overviewView, soorten: kindsView, indelen: sortView, regels: rulesView })[ui.tab]();
+    const todo = unclearGroups().length;
+    const cnt = document.getElementById('todo-count');
+    cnt.hidden = !todo; cnt.textContent = todo > 99 ? '99+' : todo;
+    if (ui.focusSearch) {
+      const si = document.getElementById('search');
+      if (si) { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
+      ui.focusSearch = false;
+    }
+  }
+
+  function statusHtml() {
+    let h = '';
+    if (ui.storeError) h += `<div class="notice warn">Deze browser kan geen kopie bewaren. De app haalt je afschriften daarom elke keer opnieuw op uit GitHub.</div>`;
+    if (ui.status) h += `<div class="notice ${ui.status.warn ? 'warn' : ''}">${ui.status.html}</div>`;
+    return h;
+  }
+
+  function emptyView() {
+    return `<section class="panel empty">
+      <h2>Nog geen afschriften</h2>
+      <p class="hint">Er staan nog geen afschriften in de map <b>afschriften</b> van je repository.</p>
+      <ol class="steps">
+        <li>Download in de Rabo App je <b>rekeningafschrift als PDF</b> en bewaar het in <b>Bestanden</b>.</li>
+        <li>Tik hieronder op <b>Afschriften toevoegen</b>. De app zet ze in je GitHub-repository.</li>
+        <li>Daarna staan ze op al je apparaten. Elke maand voeg je alleen het nieuwe afschrift toe.</li>
+      </ol>
+      ${statusHtml()}${ui.connectError ? `<div class="notice warn">${esc(ui.connectError)}</div>` : ''}
+      <button class="btn primary block" data-act="import">Afschriften toevoegen</button>
+    </section>`;
+  }
+
+  function setupView() {
+    return `<section class="panel empty">
+      <h2>Koppel je GitHub-repository</h2>
+      <p class="hint">Kasboek bewaart je afschriften en regels in je eigen <b>privé</b>-repository op GitHub. Zo staan ze op al je apparaten en hoef je ze maar één keer toe te voegen.</p>
+      <form id="setup" class="stack" style="gap:12px" novalidate>
+        <label class="fld"><span class="kicker">GitHub-gebruikersnaam</span><input class="field" id="s-owner" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(ui.setupOwner || '')}"></label>
+        <label class="fld"><span class="kicker">Repository</span><input class="field" id="s-repo" autocapitalize="none" spellcheck="false" value="${esc(ui.setupRepo || 'kasboek-data')}"></label>
+        <label class="fld"><span class="kicker">Toegangssleutel (token)</span><input class="field" id="s-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="github_pat_…"></label>
+        ${ui.connectError ? `<div class="notice warn">${esc(ui.connectError)}</div>` : ''}
+        <button class="btn primary block" type="submit" id="s-go">Koppelen</button>
+      </form>
+      <p class="hint">De sleutel blijft alleen op dit apparaat. Gebruik een sleutel die alleen toegang heeft tot deze ene repository, met "Contents" op lezen en schrijven.</p>
+    </section>`;
+  }
+
+  async function connect(owner, repo, token) {
+    ui.setupOwner = owner; ui.setupRepo = repo;
+    if (!owner || !repo || !token) { ui.connectError = 'Vul alle drie de velden in.'; return render(); }
+    gh = { owner, repo, token };
+    const go = document.getElementById('s-go');
+    if (go) { go.disabled = true; go.textContent = 'Bezig met koppelen…'; }
+    try {
+      const info = await (await api('')).json();
+      if (!info.private) {
+        gh = null;
+        ui.connectError = 'Deze repository is openbaar. Iedereen zou dan je afschriften kunnen zien. Maak hem privé (Settings → Danger Zone → Change visibility) of kies een privé-repository.';
+        return render();
+      }
+      writeLS(CFG_KEY, gh);
+      cache = { files: {} }; saveCache();
+      ui.connectError = null;
+      render();
+      loadAll();
+    } catch (e) {
+      gh = null;
+      ui.connectError = e.message;
+      render();
+    }
+  }
+
+  // ---------- overzicht ----------
+  function overviewView() {
+    const ms = months();
+    const cur = totals(inMonth(ui.month));
+    const i = ms.indexOf(ui.month);
+    const prev = i > 0 ? totals(inMonth(ms[i - 1])) : null;
+    const diff = cur.income - cur.spent;
+    let deltaHtml = '';
+    if (prev && prev.spent > 0) {
+      const d = cur.spent - prev.spent;
+      deltaHtml = `<div class="delta">${d > 0 ? '<b class="neg">' + money(d, true) + ' meer</b>' : '<b class="pos">' + money(-d, true) + ' minder</b>'} dan ${monthShort(ms[i - 1])}</div>`;
+    }
+    const pin = inMonth(ui.month).filter(t => PIN_TYPES.includes(t.type) && t.amount < 0);
+    const pinSum = -pin.reduce((s, t) => s + t.amount, 0);
+    const first = ms[0], last = ms[ms.length - 1];
+
+    return `<div class="stack">
+      ${statusHtml()}
+      ${balanceCard()}
+      <section class="summary">
+        <div class="main"><span class="kicker">Uitgegeven</span><span class="big num">${money(cur.spent)}</span>${deltaHtml}</div>
+        <div><span class="kicker">Binnengekomen</span><span class="mid num pos">${money(cur.income)}</span></div>
+        <div><span class="kicker">Over</span><span class="mid num ${diff < 0 ? 'neg' : ''}">${money(diff)}</span></div>
+      </section>
+      ${incomeCard()}
+      <section class="panel list">
+        <button class="row-btn" data-act="pin">
+          <span class="ic" style="background:var(--accent)">€</span>
+          <span class="who"><b>Pinbetalingen</b><small>${pin.length} keer gepind in ${monthShort(ui.month)}</small></span>
+          <span class="amt num">${money(pinSum)}</span>
+        </button>
+        <button class="row-btn" data-act="files">
+          <span class="ic" style="background:var(--muted)">↥</span>
+          <span class="who"><b>Afschriften</b><small>${ms.length} maanden, ${monthShort(first)} ${first.slice(0, 4)} t/m ${monthShort(last)} ${last.slice(0, 4)}</small></span>
+          <span class="btn small primary" data-act="import">Toevoegen</span>
+        </button>
+      </section>
+    </div>`;
+  }
+
+  function incomeCard() {
+    if (!incomeDefs().length) return '';
+    const today = new Date();
+    const latest = ui.month === months().slice(-1)[0];
+    const rows = incomeDefs().map(inc => {
+      const got = inMonth(ui.month).filter(t => t.amount > 0 && catOf(t) === inc.cat);
+      const sum = got.reduce((s, t) => s + t.amount, 0);
+      const nx = inc.next(today);
+      const c = catObj(inc.cat);
+      return `<div class="row-btn">
+        <span class="ic" style="background:${c.color}">${initial(inc.label)}</span>
+        <span class="who"><b>${esc(inc.label)}</b><small>${esc(inc.when)}${latest && nx ? ` · volgende ${nx.approx ? 'rond ' : ''}${dayName(nx.date)}` : ''}</small></span>
+        <span class="amtcol">${got.length
+          ? `<span class="amt num in">${signed(sum)}</span><span class="paid">✓ ${got.map(t => dayName(t.date)).join(', ')}</span>`
+          : `<span class="unpaid">niet in ${monthShort(ui.month)}</span>`}</span>
+      </div>`;
+    }).join('');
+    return `<section class="section"><h2>Inkomsten</h2><div class="panel list">${rows}</div></section>`;
+  }
+
+  // ---------- saldo ----------
+  function balanceSeries() {
+    const sts = data.statements.filter(s => typeof s.start === 'number').sort((a, b) => isoOf(a.from).localeCompare(isoOf(b.from)));
+    if (!sts.length || data.txs.some(t => !t.st)) return [];
+    const pts = [];
+    for (const s of sts) {
+      const from = isoOf(s.from), to = isoOf(s.to);
+      const perDay = {};
+      for (const t of data.txs) {
+        if (t.st !== s.from) continue;
+        const d = t.date < from ? from : t.date > to ? to : t.date;
+        perDay[d] = (perDay[d] || 0) + t.amount;
+      }
+      let bal = s.start;
+      for (let d = new Date(from + 'T12:00Z'); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+        const iso = d.toISOString().slice(0, 10);
+        bal += perDay[iso] || 0;
+        pts.push({ date: iso, bal });
+      }
+    }
+    return pts;
+  }
+
+  let balPts = [];
+  const BAL = { W: 360, H: 150, padL: 34, padB: 20, padT: 10 };
+  function balanceCard() {
+    balPts = balanceSeries();
+    if (!balPts.length) {
+      return `<div class="notice">Voeg je afschriften opnieuw toe om het verloop van je saldo te zien. Dubbele transacties worden overgeslagen.</div>`;
+    }
+    const { W, H, padL, padB, padT } = BAL;
+    const inSel = balPts.filter(p => p.date.startsWith(ui.month));
+    const endPt = inSel.length ? inSel[inSel.length - 1] : balPts[balPts.length - 1];
+    const low = inSel.length ? inSel.reduce((m, p) => p.bal < m.bal ? p : m) : null;
+    const vals = balPts.map(p => p.bal);
+    const lo = Math.min(0, ...vals), hi = Math.max(...vals, 1);
+    const step = niceStep((hi - lo) / 3);
+    const top = Math.ceil(hi / step) * step, bot = Math.floor(lo / step) * step;
+    const x = i => padL + (W - padL) * i / Math.max(1, balPts.length - 1);
+    const y = v => padT + (H - padT - padB) * (top - v) / (top - bot);
+    let grid = '';
+    for (let v = bot; v <= top + 1; v += step) grid += `<line class="gridline" x1="${padL}" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text x="${padL - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${Math.abs(v) >= 100000 ? (v / 100000) + 'k' : Math.round(v / 100)}</text>`;
+    const line = balPts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.bal).toFixed(1)}`).join('');
+    const base = y(Math.max(bot, 0)).toFixed(1);
+    const area = `${line}L${x(balPts.length - 1).toFixed(1)},${base}L${x(0).toFixed(1)},${base}Z`;
+    const firstIdx = balPts.findIndex(p => p.date.startsWith(ui.month));
+    const band = firstIdx >= 0 ? `<rect x="${x(firstIdx).toFixed(1)}" y="${padT}" width="${(x(firstIdx + inSel.length - 1) - x(firstIdx)).toFixed(1)}" height="${H - padT - padB}" style="fill:var(--accent-soft)"/>` : '';
+    const monthsList = [...new Set(balPts.map(p => p.date.slice(0, 7)))];
+    const every = monthsList.length > 7 ? 2 : 1;
+    const ticks = monthsList.map((m, j) => {
+      if (j % every) return '';
+      const i = balPts.findIndex(p => p.date.startsWith(m));
+      return `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="start">${monthShort(m)}</text>`;
+    }).join('');
+    // inkomstenmomenten als stip op de lijn
+    const incDays = new Map();
+    const incCats = incomeDefs().map(inc => inc.cat);
+    for (const t of data.txs) if (t.amount > 0 && incCats.includes(catOf(t))) incDays.set(t.date, true);
+    const marks = balPts.map((p, i) => incDays.has(p.date) ? `<circle cx="${x(i).toFixed(1)}" cy="${y(p.bal).toFixed(1)}" r="2.6" style="fill:var(--pos);stroke:var(--surface);stroke-width:1"/>` : '').join('');
+    const ei = balPts.indexOf(endPt);
+    return `<section class="panel balance">
+      <div class="row">
+        <div style="display:grid;gap:2px"><span class="kicker">Saldo eind ${esc(monthName(endPt.date.slice(0, 7)))}</span><span class="big num ${endPt.bal < 0 ? 'neg' : ''}">${money(endPt.bal)}</span></div>
+        ${low ? `<span class="delta">laagste: <b class="${low.bal < 5000 ? 'neg' : ''}">${money(low.bal)}</b> op ${dayName(low.date)}</span>` : ''}
+      </div>
+      <svg class="bal-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verloop van je saldo">
+        <defs><linearGradient id="balfill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.28"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>
+        ${band}${grid}
+        ${bot < 0 ? `<line class="zero" x1="${padL}" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"/>` : ''}
+        <path d="${area}" style="fill:url(#balfill)"/>
+        <path class="bal-line" d="${line}" style="fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linejoin:round"/>
+        ${marks}
+        <circle cx="${x(ei).toFixed(1)}" cy="${y(endPt.bal).toFixed(1)}" r="3.5" style="fill:var(--accent);stroke:var(--surface);stroke-width:1.5"/>
+        ${ticks}
+        <g class="cursor" visibility="hidden"><line y1="${padT}" y2="${H - padB}" style="stroke:var(--ink);stroke-width:1;opacity:.4"/><circle r="3.5" style="fill:var(--ink)"/></g>
+      </svg>
+      <div class="legend"><span><i class="dot" style="background:var(--pos)"></i>DUO of salaris binnen</span>${bot < 0 ? '<span><i class="dot" style="background:var(--neg)"></i>onder nul</span>' : ''}</div>
+      <div class="readout" id="bal-readout">Schuif over de grafiek om je saldo per dag te zien.</div>
+    </section>`;
+  }
+
+  function balanceHover(e) {
+    const svg = e.target.closest && e.target.closest('.bal-svg');
+    if (!svg || !balPts.length) return;
+    const { W, padL } = BAL;
+    const r = svg.getBoundingClientRect();
+    const sx = (e.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(balPts.length - 1, Math.round((sx - padL) / (W - padL) * (balPts.length - 1))));
+    const p = balPts[i];
+    const seg = svg.querySelector('.bal-line').getAttribute('d').split(/[ML]/).filter(Boolean)[i].split(',');
+    const g = svg.querySelector('.cursor');
+    g.setAttribute('visibility', 'visible');
+    g.querySelector('line').setAttribute('x1', seg[0]); g.querySelector('line').setAttribute('x2', seg[0]);
+    g.querySelector('circle').setAttribute('cx', seg[0]); g.querySelector('circle').setAttribute('cy', seg[1]);
+    document.getElementById('bal-readout').innerHTML = `${esc(dayName(p.date))} ${p.date.slice(0, 4)}: <b class="num">${money(p.bal)}</b>`;
+  }
+
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+    const n = raw / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  }
+
+  // ---------- soorten kosten ----------
+  function kindsView() {
+    const q = ui.search.trim().toLowerCase();
+    const searchBox = `<input class="field" id="search" type="search" placeholder="Zoek een betaling, bijv. Albert Heijn" value="${esc(ui.search)}" autocomplete="off">`;
+    if (q) {
+      const hits = data.txs.filter(t => (cleanName(t) + ' ' + t.name + ' ' + (t.details || '') + ' ' + (t.place || '')).toLowerCase().includes(q));
+      return `<div class="stack">${searchBox}
+        <div class="section-head"><span class="hint">${hits.length} betalingen in alle maanden</span><span class="num" style="font-weight:600">${money(hits.reduce((s, t) => s + t.amount, 0))}</span></div>
+        ${txList(hits, 150)}</div>`;
+    }
+    const cur = totals(inMonth(ui.month));
+    const cats = Object.entries(cur.byCat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const max = cats.length ? cats[0][1] : 1;
+    const catRows = cats.map(([id, v]) => {
+      const c = catObj(id);
+      return `<button class="cat" data-cat="${id}">
+        <span class="nm"><span class="dot" style="background:${c.color}"></span><span>${esc(c.label)}</span></span>
+        <span class="amt num">${money(v)}<span class="pct">${Math.round(v / cur.spent * 100)}%</span></span>
+        <span class="track"><i style="width:${(v / max * 100).toFixed(1)}%;background:${c.color}"></i></span>
+      </button>`;
+    }).join('') || '<p class="hint" style="padding:8px 16px">Geen uitgaven in deze maand.</p>';
+
+    const ms = months().slice(-12);
+    const groups = fixedGroups();
+    for (const v of groups) {
+      const firstM = v.txs[v.txs.length - 1].date.slice(0, 7);
+      const span = ms.filter(m => m >= firstM);
+      const inSpan = v.txs.filter(t => span.includes(t.date.slice(0, 7)));
+      const n = span.filter(m => v.txs.some(t => t.date.startsWith(m))).length;
+      v.monthly = span.length > 0 && n >= span.length - 1;
+      v.perMonth = v.median * Math.min(1, inSpan.length / Math.max(1, span.length));
+      v.thisMonth = -v.txs.filter(t => t.date.startsWith(ui.month)).reduce((s, t) => s + t.amount, 0);
+      v.freq = v.monthly ? 'elke maand' + (span.length < ms.length ? ' sinds ' + monthShort(firstM) : '') : `${n}× in ${span.length} mnd`;
+    }
+    groups.sort((a, b) => b.perMonth - a.perMonth);
+    const perMonth = groups.reduce((s, v) => s + v.perMonth, 0);
+    const paid = groups.reduce((s, v) => s + v.thisMonth, 0);
+    const fixedRows = groups.map(v => {
+      const c = catObj(v.cat);
+      return `<button class="row-btn" data-group="${esc(v.key)}">
+        <span class="ic" style="background:${c.color}">${initial(c.id.startsWith('c_') || c.id === 'wonen' ? c.label : v.name)}</span>
+        <span class="who"><b>${esc(c.id.startsWith('c_') || c.id === 'wonen' ? c.label : v.name)}</b><small>${esc(c.id.startsWith('c_') || c.id === 'wonen' ? v.name : c.label)} · ${v.freq}</small></span>
+        <span class="amtcol"><span class="amt num">${money(v.median, v.median >= 10000)}<span class="hint" style="font-weight:400">${v.monthly ? '/mnd' : '/keer'}</span></span>
+          ${v.thisMonth ? `<span class="paid num">✓ ${money(v.thisMonth)}</span>` : `<span class="unpaid">niet in ${monthShort(ui.month)}</span>`}</span>
+      </button>`;
+    }).join('');
+
+    return `<div class="stack">
+      ${searchBox}
+      <section class="section">
+        <div class="section-head"><h2>Per soort in ${esc(monthShort(ui.month))} · <span class="num">${money(cur.spent)}</span></h2><button class="btn small" data-act="new-cat">+ Nieuwe soort kosten</button></div>
+        <div class="panel" style="padding:6px 0">${catRows}</div>
+      </section>
+      <section class="section">
+        <div class="section-head"><h2>Vaste lasten</h2><span class="hint">ca. <b class="num" style="color:var(--ink)">${money(perMonth, true)}</b> per maand · ${money(paid, true)} betaald in ${monthShort(ui.month)}</span></div>
+        <div class="panel list">${fixedRows || '<p class="hint" style="padding:14px 16px">Nog geen vaste lasten gevonden.</p>'}</div>
+        <p class="hint">Tik op een vaste last om de betalingen te zien of hem uit deze lijst te halen.</p>
+      </section>
+    </div>`;
+  }
+
+  // vaste lasten: per regel, of per naam als er geen regel is en de betaling elke maand terugkomt
+  function fixedGroups() {
+    const g = {}; const ruled = new Set();
+    for (const t of data.txs) {
+      if (t.amount >= 0 || PIN_TYPES.includes(t.type) || t.type === 'ga') continue;
+      const cat = catOf(t);
+      if (catObj(cat).kind !== 'uit') continue;
+      const r = ruleFor(t);
+      if (r) ruled.add(ruleKey(t));
+      const key = r ? 'r:' + r.id : ruleKey(t);
+      (g[key] = g[key] || { key, rule: r, name: cleanName(t), cat, txs: [] }).txs.push(t);
+    }
+    const out = [];
+    for (const v of Object.values(g)) {
+      v.txs.sort((a, b) => b.date.localeCompare(a.date));
+      v.name = cleanName(v.txs[0]);
+      const amts = v.txs.map(t => -t.amount).sort((a, b) => a - b);
+      v.median = amts[Math.floor(amts.length / 2)];
+      if (v.rule) { if (v.rule.fixed) out.push(v); continue; }
+      if (ruled.has(v.key)) continue;
+      const monthsSet = new Set(v.txs.map(t => t.date.slice(0, 7)));
+      const regular = amts.filter(a => Math.abs(a - v.median) <= v.median * 0.1).length / amts.length >= 0.6;
+      if (monthsSet.size >= 3 && v.cat !== 'vrienden' && (v.txs.some(t => RECURRING_TYPES.includes(t.type)) || (regular && monthsSet.size >= 4))) out.push(v);
+    }
+    return out;
+  }
+
+  // ---------- regels ----------
+  function rulesView() {
+    const rows = data.ruleList.map((r, i) => {
+      const n = data.txs.filter(t => ruleMatches(r, t)).length;
+      const c = r.cat ? catObj(r.cat) : null;
+      return `<div class="rule ${r.on ? '' : 'off'}">
+        <label class="switch" title="${r.on ? 'Regel staat aan' : 'Regel staat uit'}"><input type="checkbox" data-toggle="${r.id}" ${r.on ? 'checked' : ''} aria-label="Regel ${esc(r.match)} aan of uit"><span></span></label>
+        <button class="rule-txt" data-rule="${r.id}">
+          <b>${esc(r.match)}${r.amount != null ? ` · <span class="num">${money(r.amount)}</span>` : ''}</b>
+          <small><span class="arrow">→</span> ${c ? `<span class="tag"><i class="dot" style="background:${c.color}"></i>${esc(c.label)}</span>` : 'automatische soort'}${r.fixed ? ' · vaste last' : ''} · ${n} betaling${n === 1 ? '' : 'en'}</small>
+        </button>
+        <button class="edit" data-rule="${r.id}" aria-label="Regel aanpassen">›</button>
+      </div>`;
+    }).join('');
+    return `<div class="stack">
+      <section class="section">
+        <div class="section-head"><h2>Jouw regels</h2><button class="btn small primary" data-act="new-rule">+ Nieuwe regel</button></div>
+        <p class="hint">Een regel zegt bij welke soort kosten een betaling hoort. Bijvoorbeeld: <b>Sportschool · €30</b> is <b>Abonnementen</b>. Zet een regel uit met het schuifje.</p>
+        <div class="panel">${rows || '<p class="hint" style="padding:14px 16px">Nog geen regels.</p>'}</div>
+        <p class="hint">Valt een betaling onder meerdere regels, dan telt de bovenste. Betalingen zonder regel deelt de app zelf in op naam van de winkel of persoon.</p>
+      </section>
+      ${data.txs.length ? '' : statusHtml()}
+    </div>`;
+  }
+
+  function catSelect(cur, allowAuto) {
+    const groups = [['uit', 'Uitgaven'], ['in', 'Inkomsten'], ['eigen', 'Niet meetellen']];
+    return (allowAuto ? `<option value="" ${!cur ? 'selected' : ''}>Automatisch</option>` : '') +
+      groups.map(([kind, label]) => `<optgroup label="${label}">` + allCats().filter(c => c.kind === kind).map(c => `<option value="${c.id}" ${c.id === cur ? 'selected' : ''}>${esc(c.label)}</option>`).join('') + '</optgroup>').join('') +
+      `<option value="__new">+ Nieuwe soort…</option>`;
+  }
+
+  function readCat(bg) {
+    const v = bg.querySelector('#f-cat').value;
+    if (v !== '__new') return v || null;
+    const label = (bg.querySelector('#f-newcat').value || '').trim();
+    if (!label) return undefined;
+    return createCat(label);
+  }
+
+  function createCat(label) {
+    const existing = allCats().find(c => c.label.toLowerCase() === label.toLowerCase());
+    if (existing) return existing.id;
+    let id = 'c_' + (label.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'soort');
+    while (CAT[id]) id += '_';
+    data.cats.push({ id, label, kind: 'uit', color: CUSTOM_COLORS[data.cats.length % CUSTOM_COLORS.length] });
+    refreshIndex();
+    return id;
+  }
+
+  // ---------- indelen ----------
+  const UNCLEAR = ['overig', 'overboeking', 'vrienden'];
+  // een komma betekent "of" in een regel, dus alleen het deel vóór de komma gebruiken
+  const safeMatch = name => String(name).split(',')[0].trim();
+  function unclearGroups() {
+    const g = {};
+    for (const t of data.txs) {
+      if (t.amount >= 0 || data.overrides[t.id] || ruleFor(t)) continue;
+      const auto = autoCategory(t, extraRules);
+      if (!UNCLEAR.includes(auto)) continue;
+      const k = ruleKey(t);
+      (g[k] = g[k] || { key: k, auto, txs: [], total: 0 }).txs.push(t);
+      g[k].total -= t.amount;
+    }
+    const out = Object.values(g);
+    for (const v of out) { v.txs.sort((a, b) => b.date.localeCompare(a.date)); v.name = cleanName(v.txs[0]); }
+    return out.sort((a, b) => b.total - a.total);
+  }
+
+  function sortView() {
+    const groups = unclearGroups();
+    const own = data.cats.filter(c => c.kind === 'uit');
+    const rows = groups.map(v => {
+      const c = catObj(v.auto);
+      return `<div class="todo">
+        <span class="ic" style="background:${c.color}">${initial(v.name)}</span>
+        <button class="who" data-unclear="${esc(v.key)}"><b>${esc(v.name)}</b><small>${v.txs.length}× · laatst ${dayName(v.txs[0].date)} ${v.txs[0].date.slice(0, 4)} · nu: ${esc(c.label)}</small></button>
+        <span class="amt num">${money(v.total)}</span>
+        <select class="field" data-assign="${esc(v.key)}" aria-label="Soort kosten voor ${esc(v.name)}">
+          <option value="" selected>Kies soort kosten…</option>
+          <option value="__keep">Laat staan als ${esc(c.label)}</option>
+          <optgroup label="Soorten kosten">${allCats().filter(x => x.kind === 'uit' && x.id !== v.auto).map(x => `<option value="${x.id}">${esc(x.label)}</option>`).join('')}</optgroup>
+          <option value="__new">+ Nieuwe soort kosten…</option>
+        </select>
+      </div>`;
+    }).join('');
+    return `<div class="stack">
+      ${statusHtml()}
+      <section class="section">
+        <div class="section-head"><h2>Nog in te delen</h2><span class="hint">${groups.length} namen · ${groups.reduce((s, v) => s + v.txs.length, 0)} betalingen</span></div>
+        <p class="hint">Deze betalingen kon de app niet goed plaatsen, zoals tikkies en overboekingen aan personen. Kies per naam de soort kosten. Dat geldt meteen voor alle betalingen aan die naam, ook voor nieuwe. Tik op een naam om de betalingen te zien.</p>
+        <div class="panel">${rows || '<p class="hint" style="padding:16px">Alles is ingedeeld. Nieuwe onduidelijke betalingen verschijnen hier vanzelf.</p>'}</div>
+      </section>
+      <section class="section">
+        <div class="section-head"><h2>Jouw soorten kosten</h2><button class="btn small primary" data-act="new-cat">+ Nieuwe soort kosten</button></div>
+        <div class="chips">${own.map(c => `<button class="chip" data-editcat="${c.id}"><i class="dot" style="background:${c.color}"></i>${esc(c.label)}</button>`).join('') || '<span class="hint">Nog geen eigen soorten.</span>'}</div>
+        <p class="hint">Tik op een soort om de naam te wijzigen of hem te verwijderen.</p>
+      </section>
+    </div>`;
+  }
+
+  function assignGroup(key, value) {
+    const v = unclearGroups().find(g => g.key === key);
+    if (!v) return;
+    if (value === '__new') return openNewCatSheet(id => assignGroup(key, id));
+    const cat = value === '__keep' ? v.auto : value;
+    const rule = { id: 'r' + data.nextRule++, on: true, match: safeMatch(v.name), amount: null, cat, fixed: false };
+    data.ruleList.push(rule);
+    save();
+    ui.undo = rule.id;
+    ui.status = { html: `<b>${esc(v.name)}</b> hoort nu bij <b>${esc(catObj(cat).label)}</b> (${v.txs.length} betaling${v.txs.length === 1 ? '' : 'en'}).<button class="link" data-act="undo">Ongedaan maken</button>` };
+    render();
+  }
+
+  function openNewCatSheet(onDone, editId) {
+    const cur = editId ? data.cats.find(c => c.id === editId) : null;
+    const used = cur ? data.ruleList.filter(r => r.cat === cur.id).length : 0;
+    const bg = sheet(`
+      <h2 id="sh-title" style="font-size:1.25rem">${cur ? 'Soort kosten aanpassen' : 'Nieuwe soort kosten'}</h2>
+      <label class="fld"><span class="kicker">Naam</span><input class="field" id="c-name" value="${esc(cur ? cur.label : '')}" placeholder="bijv. Uit eten, Cadeaus, Vakantie" autocomplete="off"></label>
+      <p class="hint" id="c-msg">${cur ? `Gebruikt in ${used} regel${used === 1 ? '' : 's'}.` : onDone ? 'De nieuwe soort wordt meteen gebruikt voor deze betalingen.' : 'Daarna kun je hem kiezen bij Indelen en bij Regels.'}</p>
+      <div class="actions"><button class="btn primary" id="c-save">${cur ? 'Opslaan' : 'Toevoegen'}</button>${cur ? '<button class="btn danger" id="c-del">Verwijderen</button>' : ''}<button class="btn" id="sh-close">Annuleren</button></div>`);
+    const input = bg.querySelector('#c-name');
+    input.focus();
+    const submit = () => {
+      const label = input.value.trim();
+      if (!label) { bg.querySelector('#c-msg').textContent = 'Geef de soort een naam.'; return; }
+      if (cur) { cur.label = label; refreshIndex(); save(); bg.remove(); render(); return; }
+      const id = createCat(label);
+      save(); bg.remove();
+      if (onDone) onDone(id);
+      else { ui.status = { html: `Soort <b>${esc(label)}</b> is toegevoegd.` }; render(); }
+    };
+    bg.querySelector('#c-save').onclick = submit;
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    const del = bg.querySelector('#c-del');
+    if (del) del.onclick = () => {
+      if (!del.dataset.sure) { del.dataset.sure = '1'; del.textContent = used ? `Zeker? ${used} regel${used === 1 ? '' : 's'} vervallen` : 'Zeker? Tik nog een keer'; return; }
+      data.cats = data.cats.filter(c => c !== cur);
+      data.ruleList = data.ruleList.filter(r => r.cat !== cur.id);
+      for (const k of Object.keys(data.overrides)) if (data.overrides[k] === cur.id) delete data.overrides[k];
+      refreshIndex(); save(); bg.remove(); render();
+    };
+  }
+
+  function wireNewCat(bg) {
+    const sel = bg.querySelector('#f-cat'), box = bg.querySelector('#f-newcat-wrap');
+    const upd = () => { box.hidden = sel.value !== '__new'; if (!box.hidden) bg.querySelector('#f-newcat').focus(); };
+    sel.addEventListener('change', upd);
+  }
+
+  function parseEuro(s) {
+    const v = String(s || '').replace(/[€\s]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+    if (!v) return null;
+    const n = Math.round(parseFloat(v) * 100);
+    return isFinite(n) && n > 0 ? n : NaN;
+  }
+
+  function openRuleSheet(id, preset) {
+    const existing = data.ruleList.find(r => r.id === id);
+    const r = existing || Object.assign({ match: '', amount: null, cat: null, fixed: false, on: true }, preset || {});
+    const bg = sheet(`
+      <h2 id="sh-title" style="font-size:1.25rem">${existing ? 'Regel aanpassen' : 'Nieuwe regel'}</h2>
+      <label class="fld"><span class="kicker">Naam bevat</span><input class="field" id="f-match" value="${esc(r.match)}" placeholder="bijv. Albert Heijn" autocomplete="off"><span class="hint">Meerdere namen? Zet een komma ertussen, zoals: AH, Albert Heijn</span></label>
+      <label class="fld"><span class="kicker">Bedrag (leeg = elk bedrag)</span><input class="field num" id="f-amount" inputmode="decimal" value="${r.amount != null ? (r.amount / 100).toFixed(2).replace('.', ',') : ''}" placeholder="bijv. 50,00" autocomplete="off"></label>
+      <label class="fld"><span class="kicker">Hoort bij</span><select class="field" id="f-cat">${catSelect(r.cat, true)}</select></label>
+      <label class="fld" id="f-newcat-wrap" hidden><span class="kicker">Naam nieuwe soort</span><input class="field" id="f-newcat" placeholder="bijv. Clubrekening" autocomplete="off"></label>
+      <label class="check"><input type="checkbox" id="f-fixed" ${r.fixed ? 'checked' : ''}><span><b>Vaste last</b>: tonen bij Vaste lasten</span></label>
+      <p class="hint" id="f-count"></p>
+      <div class="actions"><button class="btn primary" id="sh-save">Opslaan</button>${existing ? '<button class="btn danger" id="sh-del">Verwijderen</button>' : ''}<button class="btn" id="sh-close">Sluiten</button></div>`);
+    wireNewCat(bg);
+    const count = () => {
+      const amt = parseEuro(bg.querySelector('#f-amount').value);
+      const probe = { match: bg.querySelector('#f-match').value, amount: Number.isNaN(amt) ? -1 : amt };
+      const n = data.txs.filter(t => ruleMatches(probe, t)).length;
+      bg.querySelector('#f-count').textContent = probe.match.trim() ? `Past op ${n} betaling${n === 1 ? '' : 'en'}.` : '';
+    };
+    bg.querySelector('#f-match').addEventListener('input', count);
+    bg.querySelector('#f-amount').addEventListener('input', count);
+    count();
+    bg.querySelector('#sh-save').onclick = () => {
+      const match = bg.querySelector('#f-match').value.trim();
+      const amount = parseEuro(bg.querySelector('#f-amount').value);
+      const cat = readCat(bg);
+      const msg = bg.querySelector('#f-count');
+      if (!match) { msg.textContent = 'Vul in welke naam de betaling moet bevatten.'; return; }
+      if (Number.isNaN(amount)) { msg.textContent = 'Het bedrag klopt niet. Schrijf het zo: 50,00'; return; }
+      if (cat === undefined) { msg.textContent = 'Geef de nieuwe soort een naam.'; return; }
+      const fixed = bg.querySelector('#f-fixed').checked;
+      if (existing) Object.assign(existing, { match, amount, cat, fixed });
+      else data.ruleList.unshift({ id: 'r' + data.nextRule++, on: true, match, amount, cat, fixed });
+      save(); bg.remove(); render();
+    };
+    const del = bg.querySelector('#sh-del');
+    if (del) del.onclick = () => {
+      if (del.dataset.sure) { data.ruleList = data.ruleList.filter(x => x !== existing); save(); bg.remove(); render(); }
+      else { del.dataset.sure = '1'; del.textContent = 'Zeker? Tik nog een keer'; }
+    };
+    if (!existing) bg.querySelector('#f-match').focus();
+  }
+
+  // ---------- lijsten en vensters ----------
+  function txRow(t) {
+    const c = catObj(catOf(t));
+    const name = cleanName(t);
+    const sub = PIN_TYPES.includes(t.type)
+      ? [t.place && t.place.charAt(0) + t.place.slice(1).toLowerCase(), t.time].filter(Boolean).join(' · ')
+      : c.label;
+    return `<button class="row-btn" data-tx="${esc(t.id)}">
+      <span class="ic" style="background:${c.color}">${initial(name)}</span>
+      <span class="who"><b>${esc(name)}</b><small>${esc(sub)}</small></span>
+      <span class="amt num ${t.amount > 0 ? 'in' : ''}">${signed(t.amount)}</span>
+    </button>`;
+  }
+
+  function txList(txs, limit) {
+    const sorted = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
+    let html = '', last = null;
+    sorted.slice(0, limit).forEach(t => {
+      if (t.date !== last) { html += `<div class="day"><span>${dayName(t.date)} ${t.date.slice(0, 4)}</span></div>`; last = t.date; }
+      html += txRow(t);
+    });
+    if (sorted.length > limit) html += `<p class="hint" style="padding:10px 16px">En nog ${sorted.length - limit} oudere betalingen.</p>`;
+    return `<div class="panel list">${html || '<p class="hint" style="padding:14px 16px">Niets gevonden.</p>'}</div>`;
+  }
+
+  function sheet(inner) {
+    document.querySelectorAll('.sheet-bg').forEach(s => s.remove());
+    const bg = document.createElement('div');
+    bg.className = 'sheet-bg';
+    bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-title"><div class="grab"></div>${inner}</div>`;
+    document.body.appendChild(bg);
+    bg.addEventListener('click', e => {
+      if (e.target === bg) return bg.remove();
+      const tx = e.target.closest('[data-tx]');
+      if (tx) openTxSheet(tx.dataset.tx);
+    });
+    const close = bg.querySelector('#sh-close');
+    if (close) close.onclick = () => bg.remove();
+    return bg;
+  }
+
+  function listSheet(title, sub, txs) {
+    sheet(`<div class="section-head"><h2 id="sh-title" style="font-size:1.25rem">${esc(title)}</h2><span class="hint">${esc(sub)}</span></div>
+      ${txList(txs, 400)}
+      <div class="actions"><button class="btn" id="sh-close">Sluiten</button></div>`);
+  }
+
+  function openPinSheet() {
+    const pin = inMonth(ui.month).filter(t => PIN_TYPES.includes(t.type));
+    const sum = -pin.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0);
+    listSheet('Pinbetalingen', `${monthName(ui.month)} · ${money(sum)}`, pin);
+  }
+
+  function openCatSheet(id) {
+    const c = catObj(id);
+    const txs = inMonth(ui.month).filter(t => catOf(t) === id);
+    listSheet(c.label, `${monthName(ui.month)} · ${money(-txs.reduce((s, t) => s + t.amount, 0))}`, txs);
+  }
+
+  function openGroupSheet(key) {
+    const v = fixedGroups().find(g => g.key === key);
+    if (!v) return;
+    const c = catObj(v.cat);
+    const total = -v.txs.reduce((s, t) => s + t.amount, 0);
+    const bg = sheet(`
+      <div class="section-head"><h2 id="sh-title" style="font-size:1.25rem">${esc(v.name)}</h2><span class="tag"><i class="dot" style="background:${c.color}"></i>${esc(c.label)}</span></div>
+      <dl class="kv"><dt>Meestal</dt><dd class="num">${money(v.median)}</dd><dt>Totaal</dt><dd class="num">${money(total)} in ${v.txs.length} betalingen</dd>
+        <dt>Waarom vast</dt><dd>${v.rule ? `regel <b>${esc(v.rule.match)}${v.rule.amount != null ? ' · ' + money(v.rule.amount) : ''}</b>` : 'komt bijna elke maand terug'}</dd></dl>
+      ${txList(v.txs, 24)}
+      <div class="actions">${v.rule ? `<button class="btn" id="g-edit">Regel aanpassen</button>` : ''}<button class="btn danger" id="g-off">Geen vaste last</button><button class="btn" id="sh-close">Sluiten</button></div>`);
+    const off = bg.querySelector('#g-off');
+    off.onclick = () => {
+      if (v.rule) v.rule.fixed = false;
+      else data.ruleList.push({ id: 'r' + data.nextRule++, on: true, match: safeMatch(v.name), amount: null, cat: null, fixed: false });
+      save(); bg.remove(); render();
+    };
+    const ed = bg.querySelector('#g-edit');
+    if (ed) ed.onclick = () => openRuleSheet(v.rule.id);
+  }
+
+  function openTxSheet(id) {
+    const t = data.txs.find(x => x.id === id);
+    if (!t) return;
+    const cur = catOf(t);
+    const name = cleanName(t);
+    const r = ruleFor(t);
+    const bg = sheet(`
+      <div class="section-head"><h2 id="sh-title" style="font-size:1.25rem">${esc(name)}</h2><span class="big num ${t.amount > 0 ? 'pos' : ''}" style="font-size:1.3rem">${signed(t.amount)}</span></div>
+      <dl class="kv">
+        <dt>Datum</dt><dd>${new Date(t.date + 'T12:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}${t.time ? ', ' + t.time : ''}</dd>
+        <dt>Soort betaling</dt><dd>${esc(TYPE_LABEL[t.type] || t.type)}</dd>
+        ${t.place ? `<dt>Plaats</dt><dd>${esc(t.place)}</dd>` : ''}
+        ${t.counterIban ? `<dt>Rekening</dt><dd class="num">${esc(t.counterIban)}</dd>` : ''}
+        <dt>Omschrijving</dt><dd>${esc(t.name)}${t.details ? '<br><span class="hint">' + esc(t.details) + '</span>' : ''}</dd>
+        <dt>Hoort bij</dt><dd><span class="tag"><i class="dot" style="background:${catObj(cur).color}"></i>${esc(catObj(cur).label)}</span>${r ? ` <span class="hint">(regel ${esc(r.match)}${r.amount != null ? ' · ' + money(r.amount) : ''})</span>` : data.overrides[t.id] ? ' <span class="hint">(alleen deze betaling)</span>' : ' <span class="hint">(automatisch)</span>'}</dd>
+      </dl>
+      <div class="actions">${r ? `<button class="btn" id="t-edit">Regel aanpassen</button>` : ''}<button class="btn primary" id="t-new">Maak een regel</button><button class="btn" id="sh-close">Sluiten</button></div>`);
+    if (r) bg.querySelector('#t-edit').onclick = () => openRuleSheet(r.id);
+    bg.querySelector('#t-new').onclick = () => openRuleSheet(null, { match: safeMatch(name), amount: null, cat: cur, fixed: false });
+  }
+
+  function openFilesSheet() {
+    const st = data.statements.slice().sort((a, b) => b.ym.localeCompare(a.ym));
+    const rows = st.map(s => `<div class="row-btn" style="grid-template-columns:1fr auto">
+      <span class="who"><b style="text-transform:capitalize">${esc(monthName(s.ym))}</b><small>${s.n} transacties · af ${money(s.debit)} · bij ${money(s.credit)}</small></span>
+      <span class="badge ${s.ok ? 'ok' : 'warn'}">${s.ok ? 'Klopt' : 'Controleren'}</span></div>`).join('');
+    const bg = sheet(`
+      <div class="section-head"><h2 id="sh-title" style="font-size:1.25rem">Afschriften</h2><span class="hint">${data.txs.length} transacties</span></div>
+      <p class="hint">"Klopt" betekent dat alle bedragen samen precies het totaal en het eindsaldo op het afschrift geven. De PDF's staan in de map <b>afschriften</b> van je repository; verwijderen doe je daar.</p>
+      <div class="list">${rows}${badFiles()}</div>
+      <div class="actions"><button class="btn primary" data-act="import">Afschrift toevoegen</button><button class="btn" id="f-gh">GitHub-koppeling</button><button class="btn" id="sh-close">Sluiten</button></div>`);
+    bg.querySelector('[data-act=import]').onclick = () => { bg.remove(); fileinput.click(); };
+    bg.querySelector('#f-gh').onclick = openGithubSheet;
+  }
+  function badFiles() {
+    return Object.values(cache.files).filter(f => f.error).map(f => `<div class="row-btn" style="grid-template-columns:1fr auto">
+      <span class="who"><b>${esc(f.name)}</b><small>${esc(f.error)}</small></span><span class="badge warn">Overgeslagen</span></div>`).join('');
+  }
+
+  function openGithubSheet() {
+    const url = gh ? 'https://github.com/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo) : '';
+    const bg = sheet(`
+      <h2 id="sh-title" style="font-size:1.25rem">GitHub-koppeling</h2>
+      <dl class="kv"><dt>Repository</dt><dd><a href="${esc(url)}" target="_blank" rel="noopener">${esc(gh.owner)}/${esc(gh.repo)}</a></dd>
+        <dt>Status</dt><dd>${esc(document.getElementById('sync').textContent)}${sync.msg ? '<br><span class="hint">' + esc(sync.msg) + '</span>' : ''}</dd>
+        <dt>Afschriften</dt><dd>${data.statements.length} ingelezen</dd></dl>
+      <p class="hint">Op dit apparaat staan alleen de koppeling en een kopie, zodat de app snel opent. Ontkoppelen wist die van dit apparaat; je repository blijft gewoon bestaan.</p>
+      <div class="actions"><button class="btn primary" id="g-refresh">Nu vernieuwen</button><button class="btn danger" id="g-off">Ontkoppelen</button><button class="btn" id="sh-close">Sluiten</button></div>`);
+    bg.querySelector('#g-refresh').onclick = () => { bg.remove(); loadAll(); };
+    const off = bg.querySelector('#g-off');
+    off.onclick = () => {
+      if (!off.dataset.sure) { off.dataset.sure = '1'; off.textContent = 'Zeker? Tik nog een keer'; return; }
+      for (const k of [CFG_KEY, CACHE_KEY, COPY_KEY]) try { localStorage.removeItem(k); } catch (e) {}
+      gh = null; cache = { files: {} }; applySettings(null); refreshIndex(); rebuild(); setSync('geen');
+      bg.remove(); render();
+    };
+  }
+
+  // ---------- importeren ----------
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = () => rej(new Error('De PDF-lezer kon niet laden. Controleer je internetverbinding en probeer het opnieuw.'));
+      document.head.appendChild(s);
+    });
+  }
+  async function getPdfjs() {
+    if (!window.pdfjsLib) {
+      await loadScript(PDFJS + 'pdf.min.js');
+      await loadScript(PDFJS + 'pdf.worker.min.js');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+    }
+    return window.pdfjsLib;
+  }
+
+  async function importFiles(files) {
+    ui.status = { html: 'Bezig met lezen…' }; ui.tab = 'overzicht'; render();
+    const msgs = []; let warn = false; let added = 0;
+    try {
+      const lib = await getPdfjs();
+      for (const f of files) {
+        try {
+          const bytes = new Uint8Array(await f.arrayBuffer());
+          const r = await window.RaboParser.parsePdf(lib, bytes.slice());
+          const ym = isoOf(r.from).slice(0, 7);
+          if (Object.values(cache.files).some(x => x.statement && x.statement.from === r.from)) {
+            msgs.push(`<b style="text-transform:capitalize">${esc(monthName(ym))}</b>: stond er al in`);
+            continue;
+          }
+          // afschrift in je repository zetten, zodat het op al je apparaten staat
+          const safeName = /^[\w.-]+\.pdf$/i.test(f.name) ? f.name : `afschrift-${ym}.pdf`;
+          const path = PDF_DIR + '/' + (cache.files[PDF_DIR + '/' + safeName] ? `afschrift-${ym}-${Date.now()}.pdf` : safeName);
+          const res = await api('/contents/' + encPath(path), { method: 'PUT', body: JSON.stringify({ message: 'Afschrift ' + monthName(ym) + ' toegevoegd', content: b64FromBytes(bytes) }) });
+          const sha = (await res.json()).content.sha;
+          cache.files[path] = Object.assign({ sha, name: path.split('/').pop() }, pack(r));
+          const before = data.txs.length;
+          rebuild();
+          const n = data.txs.length - before;
+          added += n;
+          if (!r.check.ok) warn = true;
+          msgs.push(`<b style="text-transform:capitalize">${esc(monthName(ym))}</b>: ${n} nieuw, opgeslagen in GitHub${r.check.ok ? '' : ' (totalen kloppen niet helemaal, controleer dit afschrift)'}`);
+          if (!ui.month || ym > ui.month) ui.month = ym;
+        } catch (e) {
+          warn = true;
+          const known = e.status || e.offline || (e.message && e.message.includes('Rabobank'));
+          msgs.push(`<b>${esc(f.name)}</b>: ${esc(known ? e.message : 'dit bestand kon niet gelezen worden. Kies een rekeningafschrift (PDF) van de Rabobank.')}`);
+        }
+      }
+      saveCache();
+    } catch (e) {
+      warn = true; msgs.push(esc(e.message));
+    }
+    const summary = added ? `${added} transacties toegevoegd.` : 'Geen nieuwe transacties.';
+    ui.status = { warn, html: summary + (files.length <= 3 || warn ? '<br>' + msgs.join('<br>') : ` ${files.length} afschriften gelezen.`) };
+    render();
+  }
+
+  // ---------- events ----------
+  const fileinput = document.getElementById('fileinput');
+  fileinput.addEventListener('change', () => { const f = [...fileinput.files]; fileinput.value = ''; if (f.length) importFiles(f); });
+
+  function setTab(t) {
+    ui.tab = t; ui.status = null;
+    try { localStorage.setItem(STORE + '.tab', t); } catch (e) {}
+    render(); window.scrollTo(0, 0);
+  }
+  document.querySelector('nav.tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
+  const step = d => { const ms = months(); ui.month = ms[Math.max(0, Math.min(ms.length - 1, ms.indexOf(ui.month) + d))]; render(); };
+  document.getElementById('prev').onclick = () => step(-1);
+  document.getElementById('next').onclick = () => step(1);
+
+  view.addEventListener('click', e => {
+    const el = e.target.closest('[data-act],[data-cat],[data-tx],[data-group],[data-rule],[data-unclear],[data-editcat]');
+    if (!el) return;
+    if (el.dataset.unclear) {
+      const v = unclearGroups().find(g => g.key === el.dataset.unclear);
+      return v && listSheet(v.name, `${v.txs.length} betalingen · ${money(v.total)}`, v.txs);
+    }
+    if (el.dataset.editcat) return openNewCatSheet(null, el.dataset.editcat);
+    if (el.dataset.tx) return openTxSheet(el.dataset.tx);
+    if (el.dataset.cat) return openCatSheet(el.dataset.cat);
+    if (el.dataset.group) return openGroupSheet(el.dataset.group);
+    if (el.dataset.rule) return openRuleSheet(el.dataset.rule);
+    const a = el.dataset.act;
+    if (a === 'import') { e.stopPropagation(); fileinput.click(); }
+    else if (a === 'pin') openPinSheet();
+    else if (a === 'files') openFilesSheet();
+    else if (a === 'new-rule') openRuleSheet(null);
+    else if (a === 'new-cat') openNewCatSheet(null);
+    else if (a === 'undo') {
+      data.ruleList = data.ruleList.filter(r => r.id !== ui.undo);
+      ui.undo = null; ui.status = { html: 'Teruggezet.' }; save(); render();
+    }
+  });
+  view.addEventListener('change', e => {
+    if (e.target.dataset && e.target.dataset.assign !== undefined) {
+      if (e.target.value) assignGroup(e.target.dataset.assign, e.target.value);
+      if (e.target.isConnected) e.target.value = '';
+      return;
+    }
+    const id = e.target.dataset && e.target.dataset.toggle;
+    if (!id) return;
+    const r = data.ruleList.find(x => x.id === id);
+    if (r) { r.on = e.target.checked; save(); render(); }
+  });
+  view.addEventListener('pointermove', balanceHover);
+  view.addEventListener('pointerdown', balanceHover);
+  view.addEventListener('input', e => {
+    if (e.target.id === 'search') { ui.search = e.target.value; ui.focusSearch = true; render(); }
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.sheet-bg').forEach(s => s.remove()); });
+
+  view.addEventListener('submit', e => {
+    if (e.target.id !== 'setup') return;
+    e.preventDefault();
+    connect(document.getElementById('s-owner').value.trim(), document.getElementById('s-repo').value.trim(), document.getElementById('s-token').value.trim());
+  });
+  document.getElementById('sync').addEventListener('click', () => { if (gh) openGithubSheet(); });
+
+  render();
+  loadAll();
+})();
+</script>
+
+</html>

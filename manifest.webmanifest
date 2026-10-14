@@ -1,0 +1,13 @@
+{
+  "name": "Kasboek",
+  "short_name": "Kasboek",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#eef1f2",
+  "theme_color": "#1c5a61",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
