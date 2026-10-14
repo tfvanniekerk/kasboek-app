@@ -691,15 +691,18 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
 
   let balPts = [];
   const BAL = { W: 360, H: 150, padL: 34, padB: 20, padT: 10 };
+  // saldo per dag binnen de gekozen maand
   function balanceCard() {
-    balPts = balanceSeries();
+    const all = balanceSeries();
+    balPts = all.filter(p => p.date.startsWith(ui.month));
     if (!balPts.length) {
-      return `<div class="notice">Voeg je afschriften opnieuw toe om het verloop van je saldo te zien. Dubbele transacties worden overgeslagen.</div>`;
+      return all.length ? '' : `<div class="notice">Voeg je afschriften opnieuw toe om het verloop van je saldo te zien. Dubbele transacties worden overgeslagen.</div>`;
     }
     const { W, H, padL, padB, padT } = BAL;
-    const inSel = balPts.filter(p => p.date.startsWith(ui.month));
-    const endPt = inSel.length ? inSel[inSel.length - 1] : balPts[balPts.length - 1];
-    const low = inSel.length ? inSel.reduce((m, p) => p.bal < m.bal ? p : m) : null;
+    const endPt = balPts[balPts.length - 1];
+    const low = balPts.reduce((m, p) => p.bal < m.bal ? p : m);
+    const prevPt = all[all.indexOf(balPts[0]) - 1];
+    const startBal = prevPt ? prevPt.bal : null;
     const vals = balPts.map(p => p.bal);
     const lo = Math.min(0, ...vals), hi = Math.max(...vals, 1);
     const step = niceStep((hi - lo) / 3);
@@ -707,18 +710,15 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     const x = i => padL + (W - padL) * i / Math.max(1, balPts.length - 1);
     const y = v => padT + (H - padT - padB) * (top - v) / (top - bot);
     let grid = '';
-    for (let v = bot; v <= top + 1; v += step) grid += `<line class="gridline" x1="${padL}" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text x="${padL - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${Math.abs(v) >= 100000 ? (v / 100000) + 'k' : Math.round(v / 100)}</text>`;
+    for (let v = bot; v <= top + 1; v += step) grid += `<line class="gridline" x1="${padL}" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text x="${padL - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${Math.abs(v) >= 100000 ? String(v / 100000).replace('.', ',') + 'k' : Math.round(v / 100)}</text>`;
     const line = balPts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.bal).toFixed(1)}`).join('');
     const base = y(Math.max(bot, 0)).toFixed(1);
     const area = `${line}L${x(balPts.length - 1).toFixed(1)},${base}L${x(0).toFixed(1)},${base}Z`;
-    const firstIdx = balPts.findIndex(p => p.date.startsWith(ui.month));
-    const band = firstIdx >= 0 ? `<rect x="${x(firstIdx).toFixed(1)}" y="${padT}" width="${(x(firstIdx + inSel.length - 1) - x(firstIdx)).toFixed(1)}" height="${H - padT - padB}" style="fill:var(--accent-soft)"/>` : '';
-    const monthsList = [...new Set(balPts.map(p => p.date.slice(0, 7)))];
-    const every = monthsList.length > 7 ? 2 : 1;
-    const ticks = monthsList.map((m, j) => {
-      if (j % every) return '';
-      const i = balPts.findIndex(p => p.date.startsWith(m));
-      return `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="start">${monthShort(m)}</text>`;
+    const band = '';
+    // dagnummers onder de grafiek: 1, 8, 15, 22, 29
+    const ticks = balPts.map((p, i) => {
+      const d = +p.date.slice(8, 10);
+      return [1, 8, 15, 22, 29].includes(d) ? `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : d === 29 ? 'end' : 'middle'}">${d} ${monthShort(ui.month)}</text>` : '';
     }).join('');
     // inkomstenmomenten als stip op de lijn
     const incDays = new Map();
@@ -729,7 +729,10 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     return `<section class="panel balance">
       <div class="row">
         <div style="display:grid;gap:2px"><span class="kicker">Saldo eind ${esc(monthName(endPt.date.slice(0, 7)))}</span><span class="big num ${endPt.bal < 0 ? 'neg' : ''}">${money(endPt.bal)}</span></div>
-        ${low ? `<span class="delta">laagste: <b class="${low.bal < 5000 ? 'neg' : ''}">${money(low.bal)}</b> op ${dayName(low.date)}</span>` : ''}
+        <span class="delta" style="display:grid;gap:2px">
+          ${startBal !== null ? `<span>begin maand: <b>${money(startBal)}</b></span>` : ''}
+          <span>laagste: <b class="${low.bal < 5000 ? 'neg' : ''}">${money(low.bal)}</b> op ${dayName(low.date)}</span>
+        </span>
       </div>
       <svg class="bal-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verloop van je saldo">
         <defs><linearGradient id="balfill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.28"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>
@@ -742,7 +745,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
         ${ticks}
         <g class="cursor" visibility="hidden"><line y1="${padT}" y2="${H - padB}" style="stroke:var(--ink);stroke-width:1;opacity:.4"/><circle r="3.5" style="fill:var(--ink)"/></g>
       </svg>
-      <div class="legend"><span><i class="dot" style="background:var(--pos)"></i>DUO of salaris binnen</span>${bot < 0 ? '<span><i class="dot" style="background:var(--neg)"></i>onder nul</span>' : ''}</div>
+      <div class="legend"><span><i class="dot" style="background:var(--pos)"></i>inkomsten binnen</span>${bot < 0 ? '<span><i class="dot" style="background:var(--neg)"></i>onder nul</span>' : ''}</div>
       <div class="readout" id="bal-readout">Schuif over de grafiek om je saldo per dag te zien.</div>
     </section>`;
   }
