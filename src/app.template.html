@@ -452,7 +452,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   function incomeDefs() {
     return (data.inkomsten || []).map(i => ({
       cat: i.cat, label: i.label, when: i.wanneer || '',
-      next: from => i.eersteDinsdag ? nextFirstTuesday(from) : i.dag ? nextDay(from, i.dag) : null,
+      next: from => i.eersteDinsdag ? Object.assign(nextFirstTuesday(from), { approx: true }) : i.dag ? nextDay(from, i.dag) : null,
     }));
   }
 
@@ -683,21 +683,39 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     </div>`;
   }
 
+  // voor welke maand een betaling is, uit de omschrijving: "Salaris Augustus", "maand 09/2026", "MAAND OKT."
+  const MONTHS_NL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+  function forMonth(t) {
+    const txt = (t.name + ' ' + (t.details || '')).toLowerCase().replace(/\s+/g, ' ');
+    let m = txt.match(/maand (\d{2})\/\d{4}/);
+    if (m) return MONTHS_NL[+m[1] - 1];
+    m = txt.match(/(?:salaris|maand) (jan|feb|mrt|maa|apr|mei|jun|jul|aug|sep|okt|nov|dec)[a-z]*/);
+    if (m) return MONTHS_NL[['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'].indexOf(m[1] === 'maa' ? 'mrt' : m[1])];
+    return null;
+  }
+
   function incomeCard() {
     if (!incomeDefs().length) return '';
     const today = new Date();
     const latest = ui.month === months().slice(-1)[0];
+    // tot welke dag hebben we afschriften?
+    const lastData = data.statements.reduce((m, s) => isoOf(s.to) > m ? isoOf(s.to) : m, '');
+    const periodTo = periodRange(ui.month).to;
     const rows = incomeDefs().map(inc => {
       const got = inMonth(ui.month).filter(t => t.amount > 0 && catOf(t) === inc.cat);
       const sum = got.reduce((s, t) => s + t.amount, 0);
       const nx = inc.next(today);
       const c = catObj(inc.cat);
+      const paid = got.map(t => { const f = forMonth(t); return `✓ ${dayName(t.date)}${f ? ' · voor ' + f : ''}`; }).join('<br>');
+      const missing = lastData && lastData < periodTo
+        ? `nog geen afschrift na ${shortDate(lastData)}`
+        : 'niet in deze periode';
       return `<div class="row-btn">
         <span class="ic" style="background:${c.color}">${initial(inc.label)}</span>
         <span class="who"><b>${esc(inc.label)}</b><small>${esc(inc.when)}${latest && nx ? ` · volgende ${nx.approx ? 'rond ' : ''}${dayName(nx.date)}` : ''}</small></span>
         <span class="amtcol">${got.length
-          ? `<span class="amt num in">${signed(sum)}</span><span class="paid">✓ ${got.map(t => dayName(t.date)).join(', ')}</span>`
-          : `<span class="unpaid">nog niet deze periode</span>`}</span>
+          ? `<span class="amt num in">${signed(sum)}</span><span class="paid" style="text-align:right">${paid}</span>`
+          : `<span class="unpaid">${esc(missing)}</span>`}</span>
       </div>`;
     }).join('');
     return `<section class="section"><h2>Inkomsten</h2><div class="panel list">${rows}</div></section>`;
