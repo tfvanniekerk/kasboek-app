@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon-180.png?v=euro">
 <link rel="icon" href="icon-180.png?v=euro">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
-<script>window.KASBOEK_VERSIE = "2026-10-14 21:10:42";</script>
+<script>window.KASBOEK_VERSIE = "2026-10-14 21:19:19";</script>
 <title>Mijn Kasboek</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Kasboek">
@@ -551,8 +551,9 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   // Op dit apparaat bewaren we alleen de koppeling en een kopie, zodat de app snel opent.
   const CFG_KEY = 'kasboek.github', CACHE_KEY = 'kasboek.cache.v2', COPY_KEY = 'kasboek.instellingen';
   const DATA_FILE = 'kasboek.json', PDF_DIR = 'afschriften';
-  const SETTINGS_KEYS = ['versie', 'ruleList', 'cats', 'overrides', 'nextRule', 'inkomsten', 'trefwoorden'];
-  const defaults = () => ({ versie: 1, ruleList: [], cats: [], overrides: {}, nextRule: 1, inkomsten: [], trefwoorden: {} });
+  // samenvoegen: { oudeSoort: nieuweSoort }, namen: { soort: 'andere naam' }
+  const SETTINGS_KEYS = ['versie', 'ruleList', 'cats', 'overrides', 'nextRule', 'inkomsten', 'trefwoorden', 'samenvoegen', 'namen'];
+  const defaults = () => ({ versie: 1, ruleList: [], cats: [], overrides: {}, nextRule: 1, inkomsten: [], trefwoorden: {}, samenvoegen: {}, namen: {} });
   const readLS = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
   const writeLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
 
@@ -709,7 +710,9 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   try { const t = localStorage.getItem(STORE + '.tab'); if (['overzicht', 'soorten', 'indelen', 'regels'].includes(t)) ui.tab = t; } catch (e) {}
 
   // ---------- indeling ----------
-  const allCats = () => CATEGORIES.concat(data.cats);
+  const allCats = () => CATEGORIES.filter(c => !(data.samenvoegen || {})[c.id])
+    .map(c => (data.namen || {})[c.id] ? Object.assign({}, c, { label: data.namen[c.id] }) : c)
+    .concat(data.cats);
   let CAT = {};
   let memo = new Map();
   function refreshIndex() { CAT = Object.fromEntries(allCats().map(c => [c.id, c])); memo = new Map(); }
@@ -739,9 +742,11 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     return hit;
   }
   function catOf(t) {
-    if (data.overrides[t.id]) return data.overrides[t.id];
+    const merged = (data.samenvoegen || {});
+    if (data.overrides[t.id]) return merged[data.overrides[t.id]] || data.overrides[t.id];
     const r = ruleFor(t);
-    return (r && r.cat && CAT[r.cat]) ? r.cat : autoCategory(t, extraRules);
+    const id = (r && r.cat && (CAT[r.cat] || merged[r.cat])) ? r.cat : autoCategory(t, extraRules);
+    return merged[id] || id;
   }
   const catObj = id => CAT[id] || CAT.overig;
   // ---------- periodes van de 23e tot de 23e ----------
