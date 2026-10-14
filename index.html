@@ -2,13 +2,13 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1c5a61">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png?v=euro">
 <link rel="icon" href="icon-180.png?v=euro">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
-<script>window.KASBOEK_VERSIE = "2026-10-14 20:34:55";</script>
+<script>window.KASBOEK_VERSIE = "2026-10-14 20:38:10";</script>
 <title>Mijn Kasboek</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Kasboek">
@@ -48,6 +48,10 @@
   --warn-bg: #3a2f17; --warn-ink: #f0cf8a; --shadow: none; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+/* Vast scherm zoals een gewone app: alleen omhoog/omlaag scrollen, niet zoomen, niet opzij schuiven of meeveren */
+html, body { overscroll-behavior: none; overflow-x: hidden; touch-action: pan-y; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+input, select, textarea { -webkit-user-select: text; user-select: text; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; -webkit-text-size-adjust: 100%; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -156,7 +160,8 @@ button.row-btn:hover { background: var(--accent-soft); }
 .edit { color: var(--muted); font-size: 1.2rem; border: 0; background: none; padding: 4px 2px; }
 
 /* Velden en knoppen */
-.field { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+/* 16px voorkomt dat de iPhone inzoomt als je in een veld tikt */
+.field { font-size: 16px; width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
 label.fld { display: grid; gap: 6px; }
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 14px; font-weight: 600; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -1561,6 +1566,10 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     connect(document.getElementById('s-owner').value.trim(), document.getElementById('s-repo').value.trim(), document.getElementById('s-token').value.trim());
   });
   document.getElementById('sync').addEventListener('click', () => { if (gh) openGithubSheet(); });
+
+  // knijp-zoomen tegenhouden (Safari negeert soms user-scalable=no)
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
   // ---------- updates ----------
   // Na elke aanpassing staat er een nieuwe version.json online. Is die anders dan deze versie, dan tonen we een knop.
