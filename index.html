@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon-180.png?v=euro">
 <link rel="icon" href="icon-180.png?v=euro">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px)}</style>
-<script>window.KASBOEK_VERSIE = "2026-10-14 22:00:33";</script>
+<script>window.KASBOEK_VERSIE = "2026-10-14 22:10:15";</script>
 <title>Mijn Kasboek</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Kasboek">
@@ -597,6 +597,8 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       try { extraRules.push([cat, new RegExp(src)]); } catch (e) { showError('Trefwoorden voor ' + cat + ' kloppen niet: ' + e.message); }
     }
   }
+  // unieke id's, zodat twee apparaten nooit hetzelfde nummer gebruiken
+  function newRuleId() { data.nextRule = (data.nextRule || 1) + 1; return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
   const settingsOnly = () => Object.fromEntries(SETTINGS_KEYS.map(k => [k, data[k]]));
 
   // transacties opbouwen uit alle ingelezen afschriften
@@ -665,16 +667,23 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     el.dataset.state = sync.state;
   }
 
+  let lastLoad = 0;
   async function loadAll() {
     if (!gh) return;
+    lastLoad = Date.now();
     setSync('laden');
     try {
       try {
         const j = await (await api('/contents/' + DATA_FILE)).json();
         settingsSha = j.sha;
-        applySettings(JSON.parse(textFromB64(j.content)));
+        const remote = JSON.parse(textFromB64(j.content));
+        // wijzigingen op dit apparaat die nog niet in GitHub staan, blijven bewaard
+        applySettings(baseSettings ? mergeSettings(baseSettings, settingsOnly(), remote) : remote);
         refreshIndex();
+        const changedHere = baseSettings && !same(settingsOnly(), mergeSettings(defaults(), defaults(), remote));
+        setBase(remote);
         writeLS(COPY_KEY, settingsOnly());
+        if (changedHere) save();
       } catch (e) { if (e.status !== 404) throw e; settingsSha = null; }
       let list = [];
       try { list = await (await api('/contents/' + PDF_DIR)).json(); } catch (e) { if (e.status !== 404) throw e; }
@@ -709,22 +718,70 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     if (gh) { setSync('opslaan'); saveTimer = setTimeout(pushSettings, 700); }
     return true;
   }
+  // Samenvoegen in drie richtingen: base = wat er de vorige keer in GitHub stond,
+  // mine = dit apparaat, theirs = wat er nu in GitHub staat (bijv. van een ander apparaat of van Claude).
+  const BASE_KEY = 'kasboek.basis';
+  let baseSettings = readLS(BASE_KEY);
+  const clone = o => JSON.parse(JSON.stringify(o));
+  function setBase(x) { baseSettings = clone(x); writeLS(BASE_KEY, baseSettings); }
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function mergeById(base, mine, theirs) {
+    base = base || []; mine = mine || []; theirs = theirs || [];
+    const B = Object.fromEntries(base.map(x => [x.id, x])), T = Object.fromEntries(theirs.map(x => [x.id, x]));
+    const inMine = new Set(mine.map(x => x.id));
+    // elders verwijderd en hier niet aangepast: weg
+    let out = mine.filter(x => T[x.id] || !B[x.id] || !same(x, B[x.id]));
+    // elders aangepast en hier niet: neem die van elders
+    out = out.map(x => (T[x.id] && B[x.id] && same(x, B[x.id])) ? T[x.id] : x);
+    // elders toegevoegd: op dezelfde plek invoegen
+    theirs.forEach((x, i) => { if (!B[x.id] && !inMine.has(x.id)) out.splice(Math.min(i, out.length), 0, x); });
+    return out;
+  }
+  function mergeMap(base, mine, theirs) {
+    base = base || {}; mine = mine || {}; theirs = theirs || {};
+    const out = {};
+    for (const k of new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)])) {
+      const v = same(mine[k], base[k]) ? theirs[k] : mine[k];
+      if (v !== undefined) out[k] = v;
+    }
+    return out;
+  }
+  function mergeSettings(base, mine, theirs) {
+    base = base || defaults();
+    const out = {};
+    for (const k of SETTINGS_KEYS) {
+      if (k === 'ruleList' || k === 'cats') out[k] = mergeById(base[k], mine[k], theirs[k]);
+      else if (k === 'overrides') out[k] = mergeMap(base[k], mine[k], theirs[k]);
+      else if (k === 'nextRule') out[k] = Math.max(mine[k] || 1, theirs[k] || 1);
+      else out[k] = same(mine[k], base[k]) && theirs[k] !== undefined ? theirs[k] : mine[k];
+    }
+    return out;
+  }
+
   async function pushSettings() {
     if (saving) { saveAgain = true; return; }
     saving = true;
     const body = sha => JSON.stringify(Object.assign({ message: 'Kasboek: instellingen bijgewerkt', content: b64FromText(JSON.stringify(settingsOnly(), null, 2) + '\n') }, sha ? { sha } : {}));
     try {
-      let res;
-      try { res = await api('/contents/' + DATA_FILE, { method: 'PUT', body: body(settingsSha) }); }
-      catch (e) {
-        if (e.status !== 409 && e.status !== 422) throw e;
-        // iemand anders (of een ander apparaat) heeft het bestand net aangepast: nieuwste versie ophalen en overschrijven
-        let sha = null;
-        try { sha = (await (await api('/contents/' + DATA_FILE)).json()).sha; } catch (e2) { if (e2.status !== 404) throw e2; }
-        res = await api('/contents/' + DATA_FILE, { method: 'PUT', body: body(sha) });
+      // eerst ophalen wat er nu in GitHub staat, en samenvoegen als het intussen veranderd is
+      let remote = null, remoteSha = null;
+      try { const j = await (await api('/contents/' + DATA_FILE)).json(); remoteSha = j.sha; remote = JSON.parse(textFromB64(j.content)); }
+      catch (e) { if (e.status !== 404) throw e; }
+      if (remote && remoteSha !== settingsSha) {
+        applySettings(mergeSettings(baseSettings, settingsOnly(), remote));
+        refreshIndex();
+        writeLS(COPY_KEY, settingsOnly());
+        render();
       }
-      settingsSha = (await res.json()).content.sha;
-      setSync('ok');
+      try {
+        const res = await api('/contents/' + DATA_FILE, { method: 'PUT', body: body(remoteSha) });
+        settingsSha = (await res.json()).content.sha;
+        setBase(settingsOnly());
+        setSync('ok');
+      } catch (e) {
+        // net tegelijk aangepast: opnieuw proberen (dan wordt er weer samengevoegd)
+        if (e.status === 409 || e.status === 422) saveAgain = true; else throw e;
+      }
     } catch (e) {
       setSync(e.offline ? 'offline' : 'fout', e.message);
     } finally {
@@ -1396,7 +1453,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     if (!v) return;
     if (value === '__new') return openNewCatSheet(id => assignIncome(key, id), null, 'in');
     const cat = value === '__keep' ? 'inkomen' : value;
-    const rule = { id: 'r' + data.nextRule++, on: true, match: safeMatch(v.name), amount: null, cat, fixed: false, dir: 'in' };
+    const rule = { id: newRuleId(), on: true, match: safeMatch(v.name), amount: null, cat, fixed: false, dir: 'in' };
     data.ruleList.push(rule);
     save();
     ui.undo = rule.id;
@@ -1442,7 +1499,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     if (!v) return;
     if (value === '__new') return openNewCatSheet(id => assignGroup(key, id));
     const cat = value === '__keep' ? v.auto : value;
-    const rule = { id: 'r' + data.nextRule++, on: true, match: safeMatch(v.name), amount: null, cat, fixed: false };
+    const rule = { id: newRuleId(), on: true, match: safeMatch(v.name), amount: null, cat, fixed: false };
     data.ruleList.push(rule);
     save();
     ui.undo = rule.id;
@@ -1532,7 +1589,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       const fixed = bg.querySelector('#f-fixed').checked;
       const dir = bg.querySelector('#f-dir').value || null;
       if (existing) Object.assign(existing, { match, amount, cat, fixed, dir });
-      else data.ruleList.unshift({ id: 'r' + data.nextRule++, on: true, match, amount, cat, fixed, dir });
+      else data.ruleList.unshift({ id: newRuleId(), on: true, match, amount, cat, fixed, dir });
       save(); bg.remove(); render();
     };
     const del = bg.querySelector('#sh-del');
@@ -1617,7 +1674,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     const off = bg.querySelector('#g-off');
     off.onclick = () => {
       if (v.rule) v.rule.fixed = false;
-      else data.ruleList.push({ id: 'r' + data.nextRule++, on: true, match: safeMatch(v.name), amount: null, cat: null, fixed: false });
+      else data.ruleList.push({ id: newRuleId(), on: true, match: safeMatch(v.name), amount: null, cat: null, fixed: false });
       save(); bg.remove(); render();
     };
     const ed = bg.querySelector('#g-edit');
@@ -1855,7 +1912,12 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   document.getElementById('update-btn').addEventListener('click', () => {
     location.replace(location.pathname + '?v=' + encodeURIComponent(newVersion || Date.now()));
   });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    checkUpdate();
+    // terug in de app: verversen uit GitHub (hooguit eens per minuut)
+    if (gh && !saving && Date.now() - lastLoad > 60000) loadAll();
+  });
   setInterval(checkUpdate, 10 * 60 * 1000);
   checkUpdate();
 
