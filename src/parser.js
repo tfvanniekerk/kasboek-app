@@ -174,7 +174,78 @@
     return splitStatements(await extractPages(pdfjsLib, data)).map(parsePages);
   }
 
-  const api = { parsePdf, parsePdfAll, parsePages, extractPages };
+  // ---------- CSV-download ("Transacties downloaden" in Rabo Internetbankieren) ----------
+  // Kolommen o.a.: IBAN/BBAN, Volgnr, Datum, Rentedatum, Bedrag, Saldo na trn, Tegenrekening IBAN/BBAN,
+  // Naam tegenpartij, Code, Omschrijving-1..3. Bedragen als "+644,48", datums als "2026-11-03".
+  function splitCsv(text, delim) {
+    const rows = []; let row = [], f = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
+        else f += c;
+      } else if (c === '"') q = true;
+      else if (c === delim) { row.push(f); f = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(f); rows.push(row); row = []; f = '';
+      } else f += c;
+    }
+    if (f || row.length) { row.push(f); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim()));
+  }
+  function csvAmount(s) {
+    s = String(s || '').trim().replace(/\s/g, '');
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+    const n = Math.round(parseFloat(s) * 100);
+    return isFinite(n) ? n : null;
+  }
+  function csvDate(s) {
+    s = String(s || '').trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    m = s.match(/^(\d{2})-(\d{2})-(\d{4})/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+  }
+  // geeft per rekening (IBAN) de transacties terug, met het saldo na elke transactie
+  function parseCsv(text) {
+    text = String(text).replace(/^﻿/, '');
+    const first = text.split(/\r?\n/, 1)[0] || '';
+    const delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',';
+    const rows = splitCsv(text, delim);
+    const head = (rows.shift() || []).map(h => h.trim().toLowerCase());
+    const col = name => head.indexOf(name);
+    const c = {
+      iban: col('iban/bban'), volgnr: col('volgnr'), datum: col('datum'), rente: col('rentedatum'),
+      bedrag: col('bedrag'), saldo: col('saldo na trn'), tegen: col('tegenrekening iban/bban'),
+      naam: col('naam tegenpartij'), eind: col('naam uiteindelijke partij'), init: col('naam initiërende partij'), code: col('code'),
+    };
+    if (c.iban < 0 || c.bedrag < 0 || c.datum < 0) throw new Error('Dit lijkt geen CSV-download van de Rabobank te zijn.');
+    const omschr = head.map((h, i) => (/^omschrijving/.test(h) ? i : -1)).filter(i => i >= 0);
+    const out = {};
+    for (const r of rows) {
+      const iban = (r[c.iban] || '').replace(/\s+/g, '').toUpperCase();
+      const amount = csvAmount(r[c.bedrag]);
+      const date = csvDate(c.rente >= 0 && r[c.rente] ? r[c.rente] : r[c.datum]);
+      if (!iban || amount === null || !date) continue;
+      (out[iban] = out[iban] || []).push({
+        volgnr: c.volgnr >= 0 ? String(r[c.volgnr]).trim() : '',
+        date,
+        amount,
+        saldo: c.saldo >= 0 ? csvAmount(r[c.saldo]) : null,
+        type: c.code >= 0 ? String(r[c.code] || '').trim().toLowerCase() : '',
+        name: (r[c.naam] || r[c.eind] || r[c.init] || '').trim(),
+        details: omschr.map(i => (r[i] || '').trim()).filter(Boolean).join(' '),
+        counterIban: c.tegen >= 0 ? String(r[c.tegen] || '').replace(/\s+/g, '').toUpperCase() : '',
+      });
+    }
+    if (!Object.keys(out).length) throw new Error('Er staan geen transacties in dit CSV-bestand.');
+    return out;
+  }
+
+  const api = { parsePdf, parsePdfAll, parsePages, extractPages, parseCsv };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RaboParser = api;
 })(this);

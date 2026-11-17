@@ -238,7 +238,7 @@ nav.tabs .count { position: absolute; top: -5px; right: -12px; min-width: 18px; 
   </div>
 </nav>
 
-<input type="file" id="fileinput" accept="application/pdf,.pdf" multiple hidden>
+<input type="file" id="fileinput" accept="application/pdf,.pdf,text/csv,.csv" multiple hidden>
 
 <script>
 // Laat fouten zien op het scherm, zodat je er een screenshot van kunt maken.
@@ -341,6 +341,29 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       acc.statements.push(p.statement);
       for (const t of p.txs) if (!acc.seenTx.has(t.id)) { acc.seenTx.add(t.id); acc.txs.push(t); }
     }
+    // Tussentijdse CSV-downloads vullen alleen de dagen na het laatste echte afschrift.
+    // Komt het afschrift later binnen, dan valt de CSV voor die dagen vanzelf weg.
+    const csvRows = {};
+    for (const f of Object.values(cache.files)) for (const [iban, rows] of Object.entries(f.csv || {})) {
+      const seen = csvRows[iban] = csvRows[iban] || new Map();
+      for (const r of rows) seen.set(r.volgnr || (r.date + '|' + r.amount + '|' + r.name + '|' + r.saldo), r);
+    }
+    for (const [iban, map] of Object.entries(csvRows)) {
+      const acc = byIban[iban] = byIban[iban] || { iban, product: '', statements: [], txs: [], seenSt: new Set(), seenTx: new Set() };
+      const covered = acc.statements.reduce((m, s) => isoOf(s.to) > m ? isoOf(s.to) : m, '');
+      const rows = [...map.values()].filter(r => r.date > covered)
+        .sort((a, b) => a.date.localeCompare(b.date) || (+a.volgnr || 0) - (+b.volgnr || 0));
+      if (!rows.length) continue;
+      const dmy = iso => iso.split('-').reverse().join('-');
+      const fromIso = covered ? (() => { const d = new Date(covered + 'T12:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })() : rows[0].date;
+      const from = dmy(fromIso), to = dmy(rows[rows.length - 1].date);
+      const first = rows[0], last = rows[rows.length - 1];
+      const start = first.saldo != null ? first.saldo - first.amount : null;
+      const debit = -rows.filter(r => r.amount < 0).reduce((s, r) => s + r.amount, 0);
+      const credit = rows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0);
+      acc.statements.push({ ym: fromIso.slice(0, 7), from, to, iban, product: acc.product, start, end: last.saldo, n: rows.length, debit, credit, ok: start === null || start + credit - debit === last.saldo, voorlopig: true });
+      for (const r of rows) acc.txs.push({ id: 'csv|' + iban + '|' + (r.volgnr || r.date + r.amount + r.name), st: from, date: r.date, type: r.type, amount: r.amount, name: r.name, details: r.details.slice(0, 220), counterIban: r.counterIban });
+    }
     const list = Object.values(byIban);
     for (const a of list) { a.statements.sort((x, y) => isoOf(x.from).localeCompare(isoOf(y.from))); delete a.seenSt; delete a.seenTx; }
     const main = list.find(a => a.iban === data.hoofdrekening) || list.slice().sort((a, b) => b.txs.length - a.txs.length)[0];
@@ -380,6 +403,11 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   const encPath = p => p.split('/').map(encodeURIComponent).join('/');
   function b64FromBytes(u8) { let bin = ''; for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(bin); }
   const b64FromText = s => b64FromBytes(new TextEncoder().encode(s));
+  // Rabobank-CSV is UTF-8; oudere downloads soms Windows-1252
+  function textFromBytes(u8) {
+    const t = new TextDecoder('utf-8').decode(u8);
+    return t.includes('�') ? new TextDecoder('windows-1252').decode(u8) : t;
+  }
   const textFromB64 = b => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g, '')), c => c.charCodeAt(0)));
 
   let sync = { state: gh ? 'laden' : 'geen' };
@@ -412,16 +440,20 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
       } catch (e) { if (e.status !== 404) throw e; settingsSha = null; }
       let list = [];
       try { list = await (await api('/contents/' + PDF_DIR)).json(); } catch (e) { if (e.status !== 404) throw e; }
-      const pdfs = (Array.isArray(list) ? list : []).filter(f => f.type === 'file' && /\.pdf$/i.test(f.name));
+      const pdfs = (Array.isArray(list) ? list : []).filter(f => f.type === 'file' && /\.(pdf|csv)$/i.test(f.name));
       for (const p of Object.keys(cache.files)) if (!pdfs.some(f => f.path === p)) delete cache.files[p];
       const todo = pdfs.filter(f => !cache.files[f.path] || cache.files[f.path].sha !== f.sha);
       if (todo.length) {
-        const lib = await getPdfjs();
+        const lib = todo.some(f => /\.pdf$/i.test(f.name)) ? await getPdfjs() : null;
         let i = 0;
         for (const f of todo) {
           ui.loading = `Afschrift ${++i} van ${todo.length} lezen…`; render();
           const buf = await (await api('/contents/' + encPath(f.path), { accept: 'application/vnd.github.raw' })).arrayBuffer();
-          try { cache.files[f.path] = { sha: f.sha, name: f.name, parts: (await window.RaboParser.parsePdfAll(lib, new Uint8Array(buf))).map(pack) }; }
+          try {
+            cache.files[f.path] = /\.csv$/i.test(f.name)
+              ? { sha: f.sha, name: f.name, csv: window.RaboParser.parseCsv(textFromBytes(new Uint8Array(buf))) }
+              : { sha: f.sha, name: f.name, parts: (await window.RaboParser.parsePdfAll(lib, new Uint8Array(buf))).map(pack) };
+          }
           catch (e) { cache.files[f.path] = { sha: f.sha, name: f.name, error: 'Geen Rabobank-afschrift of onleesbaar' }; }
         }
       }
@@ -1445,8 +1477,8 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
   function openFilesSheet() {
     const st = data.statements.slice().sort((a, b) => b.ym.localeCompare(a.ym));
     const rows = st.map(s => `<div class="row-btn" style="grid-template-columns:1fr auto">
-      <span class="who"><b style="text-transform:capitalize">${esc(monthName(s.ym))}</b><small>${s.n} transacties · af ${money(s.debit)} · bij ${money(s.credit)}</small></span>
-      <span class="badge ${s.ok ? 'ok' : 'warn'}">${s.ok ? 'Klopt' : 'Controleren'}</span></div>`).join('');
+      <span class="who"><b style="${s.voorlopig ? '' : 'text-transform:capitalize'}">${s.voorlopig ?esc(shortDate(isoOf(s.from)) + ' – ' + shortDate(isoOf(s.to))) : esc(monthName(s.ym))}</b><small>${s.n} transacties · af ${money(s.debit)} · bij ${money(s.credit)}</small></span>
+      <span class="badge ${s.voorlopig || !s.ok ? 'warn' : 'ok'}">${s.voorlopig ? 'Tussentijds' : s.ok ? 'Klopt' : 'Controleren'}</span></div>`).join('');
     const bg = sheet(`
       <div class="section-head"><h2 id="sh-title" style="font-size:1.25rem">Afschriften</h2><span class="hint">${data.txs.length} transacties</span></div>
       <p class="hint">"Klopt" betekent dat alle bedragen samen precies het totaal en het eindsaldo op het afschrift geven. De PDF's staan in de map <b>afschriften</b> van je repository; verwijderen doe je daar.</p>
@@ -1501,10 +1533,27 @@ window.addEventListener('unhandledrejection', function (e) { window.__kbErr(e.re
     ui.status = { html: 'Bezig met lezen…' }; ui.tab = 'overzicht'; render();
     const msgs = []; let warn = false; let added = 0;
     try {
-      const lib = await getPdfjs();
+      const isCsv = f => /\.csv$/i.test(f.name) || f.type === 'text/csv';
+      const lib = files.some(f => !isCsv(f)) ? await getPdfjs() : null;
       for (const f of files) {
         try {
           const bytes = new Uint8Array(await f.arrayBuffer());
+          if (isCsv(f)) {
+            // tussentijdse download: vult de dagen na het laatste afschrift
+            const csv = window.RaboParser.parseCsv(textFromBytes(bytes));
+            const dates = Object.values(csv).flat().map(r => r.date).sort();
+            const range = shortDate(dates[0]) + ' – ' + shortDate(dates[dates.length - 1]);
+            const name = 'tussentijds-' + dates[dates.length - 1] + '-' + Date.now().toString(36) + '.csv';
+            const path = PDF_DIR + '/' + name;
+            const res = await api('/contents/' + encPath(path), { method: 'PUT', body: JSON.stringify({ message: 'Tussentijdse transacties ' + range + ' toegevoegd', content: b64FromBytes(bytes) }) });
+            cache.files[path] = { sha: (await res.json()).content.sha, name, csv };
+            const before = data.txs.length;
+            rebuild();
+            const n = data.txs.length - before;
+            added += Math.max(0, n);
+            msgs.push(`<b>Tussentijds ${esc(range)}</b>: ${n > 0 ? n + ' nieuwe transacties' : 'geen nieuwe transacties (die dagen staan al in een afschrift)'}, opgeslagen in GitHub`);
+            continue;
+          }
           const rs = await window.RaboParser.parsePdfAll(lib, bytes.slice());
           const ym = isoOf(rs[0].from).slice(0, 7);
           // staan alle rekeningen uit deze PDF er al in?
